@@ -3,4 +3,4 @@ git add .
 git commit -m "auto commit before cleaning"
 git push
 cd ..
-rm -r jon
+rm -r EITN30_LongG-

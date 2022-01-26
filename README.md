@@ -1,1 +1,1 @@
-# EITN30_LogGé
+# EITN30_LongGé

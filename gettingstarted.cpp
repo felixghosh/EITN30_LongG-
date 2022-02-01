@@ -135,7 +135,9 @@ void master() {
     unsigned int failure = 0;                                       // keep track of failures
     time_t timer;
     time_t t0 = time(&timer); 
-    string temp = "Hello, how are you, sodkjfskjfdosijfsoijfsoijfoisjdfoijsdfiojsofijsdoifjsoijfsafhpauijfiajgpiajrgoiajregpjaergijeargoijeoairgjoaiejrgoaie";
+    cout << "please enter the message you would like to send:" << endl;
+    string temp;
+    getline(cin, temp);
     char message[1024];
     strcpy(message, temp.c_str());
     cout << "SIZE OF TEMP " << temp.length() << endl;
@@ -187,18 +189,34 @@ void slave() {
     radio.startListening();                                  // put radio in RX mode
 
     time_t startTimer = time(nullptr);                       // start a timer
-    while (time(nullptr) - startTimer < 60) {                 // use 6 second timeout
+    char message[1024];
+    int pack = 0;
+    bool finished = false;
+    while (time(nullptr) - startTimer < 60 && !finished) {                 // use 6 second timeout
         uint8_t pipe;
         if (radio.available(&pipe)) {                        // is there a payload? get the pipe number that recieved it
             uint8_t bytes = radio.getPayloadSize();          // get the size of the payload
             radio.read(&payload, bytes);                     // fetch payload from FIFO
+
+            for(int i = 0; i < 32; i++){
+                message[i + (32*pack)] = payload[i];
+                if(payload[i] == '\0'){
+                    finished = true;
+                    break;
+                }
+            }
+            pack++;
+
             cout << "Received " << (unsigned int)bytes;      // print the size of the payload
             cout << " bytes on pipe " << (unsigned int)pipe; // print the pipe number
             cout << ": " << payload << endl;                 // print the payload's value
             startTimer = time(nullptr);                      // reset timer
         }
     }
-    cout << "Nothing received in 6 seconds. Leaving RX role." << endl;
+    if(finished)
+        cout << "Full message received: " << message << endl;
+    else
+        cout << "Nothing received in 6 seconds. Leaving RX role." << endl;
     radio.stopListening();
 }
 

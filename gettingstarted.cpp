@@ -135,21 +135,23 @@ void master() {
     unsigned int failure = 0;                                       // keep track of failures
     time_t timer;
     time_t t0 = time(&timer); 
-    string temp = "Hello, how are you";
+    string temp = "Hello, how are you, sodkjfskjfdosijfsoijfsoijfoisjdfoijsdfiojsofijsdoifjsoijfsafhpauijfiajgpiajrgoiajregpjaergijeargoijeoairgjoaiejrgoaie";
     char message[1024];
     strcpy(message, temp.c_str());
-    int nbrPack = sizeof(message) / 32 + 1;
-    int packetsSent = 0;                                     
-    while (failure < 1000 && packetsSent < nbrPack) {
-        int i;
+    cout << "SIZE OF TEMP " << temp.length() << endl;
+    int nbrPack = temp.length() / 32 + 1;   
+    int i;
+    int pack = 0;                                 
+    while (failure < 1000 && pack < nbrPack) {
         for(i = 0; i < 32; i++){
-            if(message[i] == '\0'){
+            if(message[i+(32*pack)] == '\0'){
                 payload[i] == '\0'; 
                 break;
             }
             else
-                payload[i] = message[i];
+                payload[i] = message[i+(32*pack)];
         }
+        
         clock_gettime(CLOCK_MONOTONIC_RAW, &startTimer);            // start the timer
         bool report = radio.write(&payload, i);         // transmit & save the report
         uint32_t timerEllapsed = getMicros();                       // end the timer
@@ -160,7 +162,7 @@ void master() {
             cout << timerEllapsed;                                  // print the timer result
             cout << " us. Sent: " << payload << endl;               // print payload sent
             //payload += 0.01;                                        // increment float payload
-            packetsSent++;    
+            pack++;   
         } else {
             // payload was not delivered
             cout << "Transmission failed or timed out" << endl;
@@ -185,7 +187,7 @@ void slave() {
     radio.startListening();                                  // put radio in RX mode
 
     time_t startTimer = time(nullptr);                       // start a timer
-    while (time(nullptr) - startTimer < 6) {                 // use 6 second timeout
+    while (time(nullptr) - startTimer < 60) {                 // use 6 second timeout
         uint8_t pipe;
         if (radio.available(&pipe)) {                        // is there a payload? get the pipe number that recieved it
             uint8_t bytes = radio.getPayloadSize();          // get the size of the payload

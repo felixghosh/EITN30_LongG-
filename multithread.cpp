@@ -17,6 +17,7 @@
 #include <time.h>      // CLOCK_MONOTONIC_RAW, timespec, clock_gettime()
 #include <RF24/RF24.h> // RF24, RF24_PA_LOW, delay()
 #include <pthread.h>
+#include <string.h>
 
 using namespace std;
 
@@ -30,8 +31,8 @@ void* receiver(void* p_radio);
 // ie: RF24 radio(<ce_pin>, <a>*10+<b>); spidev1.0 is 10, spidev1.1 is 11 etc..
 
 // Generic:
-RF24 radio(27, 60);
-RF24 radioReceive(17,0);
+RF24 radioSend(17, 0);
+RF24 radioReceive(27,60);
 
 /****************** Linux (BBB,x86,etc) ***********************/
 // See http://nRF24.github.io/RF24/pages.html for more information on usage
@@ -46,7 +47,6 @@ RF24 radioReceive(17,0);
 char payload[32]; 
 
 
-void setRole(); // prototype to set the node's role
 void master(RF24 radio);  // prototype of the TX node's behavior
 void slave(RF24 radio);   // prototype of the RX node's behavior
 
@@ -106,12 +106,17 @@ int main(int argc, char** argv) {
     pthread_t send, receive;
     RF24 *p_radio_send = (RF24*) malloc(sizeof(RF24));
     RF24 *p_radio_receive = (RF24*) malloc(sizeof(RF24));
-    *p_radio_send = radio;
+    *p_radio_send = radioSend;
     *p_radio_receive = radioReceive;
     pthread_create(&send, NULL, sender, p_radio_send);
     pthread_create(&receive, NULL, receiver, p_radio_receive);
-    while(true){
-
+    while(true){  
+        void *ret; 
+        if(pthread_join(send, &ret) != 0){
+            perror("pthread_create() error");
+            exit(3);
+        }
+        else return 0;
     }
 }
 
@@ -125,7 +130,7 @@ void* receiver(void* p_radio){
         return 0; // quit now
     }
 
-    radio.setChannel(121);
+    radio.setChannel(120);
     // to use different addresses on a pair of radios, we need a variable to
     // uniquely identify which address this radio will use to transmit
     bool radioNumber = 0; // 0 uses address[0] to transmit, 1 uses address[1] to transmit
@@ -150,7 +155,6 @@ void* receiver(void* p_radio){
 }
 
 void* sender(void* p_radio){
-    printf("SENDERTIME!\n");
     RF24 radio = *((RF24 *) p_radio);
     free(p_radio);
 
@@ -185,84 +189,69 @@ void* sender(void* p_radio){
 }
 
 
-/**
- * set this node's role from stdin stream.
- * this only considers the first char as input.
- */
-void setRole() {
-    string input = "";
-    while (!input.length()) {
-        cout << "*** PRESS 'T' to begin transmitting to the other node\n";
-        cout << "*** PRESS 'R' to begin receiving from the other node\n";
-        cout << "*** PRESS 'Q' to exit" << endl;
-        getline(cin, input);
-        if (input.length() >= 1) {
-            if (input[0] == 'T' || input[0] == 't')
-                master(radio);
-            else if (input[0] == 'R' || input[0] == 'r')
-                slave(radio);
-            else if (input[0] == 'Q' || input[0] == 'q')
-                break;
-            else
-                cout << input[0] << " is an invalid input. Please try again." << endl;
-        }
-        input = ""; // stay in the while loop
-    } // while
-} // setRole()
+
 
 
 /**
  * make this node act as the transmitter
  */
 void master(RF24 radio) {
-    printf("MASTERTIME!\n");
-    radio.stopListening();                                          // put radio in TX mode
-    printf("HERE!\n");
+    radio.stopListening();   
     unsigned int failure = 0;                                       // keep track of failures
     time_t timer;
     time_t t0 = time(&timer); 
-    cout << "please enter the message you would like to send:" << endl;
-    string temp;
-    getline(cin, temp);
-    char message[1024];
-    strcpy(message, temp.c_str());
-    cout << "SIZE OF TEMP " << temp.length() << endl;
-    int nbrPack = temp.length() / 32 + 1;   
-    int i;
-    int pack = 0;                                 
-    while (failure < 1000 && pack < nbrPack) {
-        for(i = 0; i < 32; i++){
-            if(message[i+(32*pack)] == '\0'){
-                payload[i] == '\0'; 
-                break;
-            }
-            else
-                payload[i] = message[i+(32*pack)];
-        }
+    bool finished = false;
+    while(!finished){
+        cout << "please enter the message you would like to send:" << endl;
+        string temp;
+        getline(cin, temp);
         
-        clock_gettime(CLOCK_MONOTONIC_RAW, &startTimer);            // start the timer
-        bool report = radio.write(&payload, i);         // transmit & save the report
-        uint32_t timerEllapsed = getMicros();                       // end the timer
-
-        if (report) {
-            // payload was delivered
-            cout << "Transmission successful! Time to transmit = ";
-            cout << timerEllapsed;                                  // print the timer result
-            cout << " us. Sent: " << payload << endl;               // print payload sent
-            //payload += 0.01;                                        // increment float payload
-            pack++;   
-        } else {
-            // payload was not delivered
-            cout << "Transmission failed or timed out" << endl;
-            failure++;
+        char message[1024];
+        
+        strcpy(message, temp.c_str());
+        if(!strcmp(message, "quit")){
+            finished = true;
+            break;
         }
+        cout << "SIZE OF TEMP " << temp.length() << endl;
+        int nbrPack = temp.length() / 32 + 1;   
+        int i;
+        int pack = 0;                                 
+        while (failure < 1000 && pack < nbrPack) {
+            for(i = 0; i < 32; i++){
+                if(message[i+(32*pack)] == '\0'){
+                    payload[i] == '\0'; 
+                    break;
+                }
+                else
+                    payload[i] = message[i+(32*pack)];
+            }
+            
+            clock_gettime(CLOCK_MONOTONIC_RAW, &startTimer);            // start the timer
+            bool report = radio.write(&payload, i);         // transmit & save the report
+            uint32_t timerEllapsed = getMicros();                       // end the timer
 
-        // to make this example readable in the terminal
-        //delay(1000);  // slow transmissions down by 1 second
+            if (report) {
+                // payload was delivered
+                cout << "Transmission successful! Time to transmit = ";
+                cout << timerEllapsed;                                  // print the timer result
+                cout << " us. Sent: " << payload << endl;               // print payload sent
+                //payload += 0.01;                                        // increment float payload
+                pack++;   
+            } else {
+                // payload was not delivered
+                cout << "Transmission failed or timed out" << endl;
+                failure++;
+            }
+
+            // to make this example readable in the terminal
+            //delay(1000);  // slow transmissions down by 1 second
+        }
     }
     time_t t1 = time(&timer);
     double runtime = difftime(t1, t0);
-    cout << failure << " failures detected. Leaving TX role." << endl;
+    cout << "Quitting transmission!" << endl;
+    return;
     //cout << "Packet Transmission Rate estimated at : " << 100.0 * payload / runtime << " packets/seconds. " << endl;
     //cout << "Packet Error Rate estimated at : " << 100.0 / runtime << " packets/seconds" << " or a failure rate of " << 1.0 / payload << "."<< endl;
 }
@@ -271,38 +260,43 @@ void master(RF24 radio) {
  * make this node act as the receiver
  */
 void slave(RF24 radio) {
-    printf("SLAVETIME!\n");
     radio.startListening();                                  // put radio in RX mode
 
     time_t startTimer = time(nullptr);                       // start a timer
     char message[1024];
-    int pack = 0;
-    bool finished = false;
-    while (time(nullptr) - startTimer < 60 && !finished) {                 // use 6 second timeout
-        uint8_t pipe;
-        if (radio.available(&pipe)) {                        // is there a payload? get the pipe number that recieved it
-            uint8_t bytes = radio.getPayloadSize();          // get the size of the payload
-            radio.read(&payload, bytes);                     // fetch payload from FIFO
+    
+    bool done = false;
+    while(!done && time(nullptr) - startTimer < 60){
+        bool finished = false;
+        int pack = 0;
+        while (time(nullptr) - startTimer < 60 && !finished) {                 // use 6 second timeout
+            uint8_t pipe;
+            if (radio.available(&pipe)) {                        // is there a payload? get the pipe number that recieved it
+                uint8_t bytes = radio.getPayloadSize();          // get the size of the payload
+                radio.read(&payload, bytes);                     // fetch payload from FIFO
 
-            for(int i = 0; i < 32; i++){
-                message[i + (32*pack)] = payload[i];
-                if(payload[i] == '\0'){
-                    finished = true;
-                    break;
+                for(int i = 0; i < 32; i++){
+                    message[i + (32*pack)] = payload[i];
+                    if(payload[i] == '\0'){
+                        finished = true;
+                        break;
+                    }
                 }
-            }
-            pack++;
+                pack++;
 
-            cout << "Received " << (unsigned int)bytes;      // print the size of the payload
-            cout << " bytes on pipe " << (unsigned int)pipe; // print the pipe number
-            cout << ": " << payload << endl;                 // print the payload's value
-            startTimer = time(nullptr);                      // reset timer
+                cout << "Received " << (unsigned int)bytes;      // print the size of the payload
+                cout << " bytes on pipe " << (unsigned int)pipe; // print the pipe number
+                cout << ": " << payload << endl;                 // print the payload's value
+                startTimer = time(nullptr);                      // reset timer
+            }
         }
+        if(finished)
+            cout << "Full message received: " << message << endl;
     }
-    if(finished)
-        cout << "Full message received: " << message << endl;
+    if(done)
+        cout << "Done! Exiting recevie!" << endl;
     else
-        cout << "Nothing received in 6 seconds. Leaving RX role." << endl;
+        cout << "Nothing received in 60 seconds. Leaving RX role." << endl;
     radio.stopListening();
 }
 

@@ -144,7 +144,7 @@ void* receiver(void* p_radio){
 
     radio.setPALevel(RF24_PA_LOW);
 
-    radio.openWritingPipe(address[radioNumber]);
+    //radio.openWritingPipe(address[radioNumber]);
 
     radio.openReadingPipe(1, address[!radioNumber]);
 
@@ -180,7 +180,7 @@ void* sender(void* p_radio){
 
     radio.openWritingPipe(address[radioNumber]);
 
-    radio.openReadingPipe(1, address[!radioNumber]);
+    //radio.openReadingPipe(1, address[!radioNumber]);
 
     master(radio);
 
@@ -266,10 +266,10 @@ void slave(RF24 radio) {
     char message[1024];
     
     bool done = false;
-    while(!done && time(nullptr) - startTimer < 60){
+    while(!done){
         bool finished = false;
         int pack = 0;
-        while (time(nullptr) - startTimer < 60 && !finished) {                 // use 6 second timeout
+        while (!finished) {                 // use 6 second timeout
             uint8_t pipe;
             if (radio.available(&pipe)) {                        // is there a payload? get the pipe number that recieved it
                 uint8_t bytes = radio.getPayloadSize();          // get the size of the payload
@@ -296,7 +296,7 @@ void slave(RF24 radio) {
     if(done)
         cout << "Done! Exiting recevie!" << endl;
     else
-        cout << "Nothing received in 60 seconds. Leaving RX role." << endl;
+        cout << "Nu är något snett" << endl;
     radio.stopListening();
 }
 

@@ -34,11 +34,11 @@ void setup_tun(std::string address){
     printf("Error creating tun device!");
     exit(0);
   }
-   
+
   system("sudo /sbin/ifconfig lg0 up");
 
-  std::string addr_command = "sudo ip addr add " + address + " dev lg0"
-  system(addr_command);
+  std::string addr_command = "sudo ip addr add " + address + " dev lg0";
+  system(addr_command.c_str());
 }
 
 /*int main(int argc, char *argv[])

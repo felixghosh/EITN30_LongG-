@@ -1,17 +1,4 @@
-#include <assert.h>
-#include <string.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <errno.h>
-#include <inttypes.h>
-#include <iostream>
-
-#include <linux/if_tun.h>
-#include <linux/if.h>
-#include <fcntl.h>
-#include <sys/ioctl.h>
-#include <unistd.h>
+#include "tun.hpp"
 
 #define CHECKAUX(e,s)                            \
  ((e)? (void)0: (fprintf(stderr, "'%s' failed at %s:%d - %s\n", s, __FILE__, __LINE__,strerror(errno)), exit(0)))
@@ -37,7 +24,24 @@ int tun_alloc(char *dev)
   return fd;
 }
 
-int main(int argc, char *argv[])
+void setup_tun(std::string address){
+  char dev[IFNAMSIZ+1];
+   memset(dev,0,sizeof(dev));
+   strncpy(dev, "lg0", 3);
+   // Allocate the tun device
+  int fd = tun_alloc(dev);
+  if (fd < 0){
+    printf("Error creating tun device!");
+    exit(0);
+  }
+   
+  system("sudo /sbin/ifconfig lg0 up");
+
+  std::string addr_command = "sudo ip addr add " + address + " dev lg0"
+  system(addr_command);
+}
+
+/*int main(int argc, char *argv[])
 {
   char dev[IFNAMSIZ+1];
   memset(dev,0,sizeof(dev));
@@ -60,7 +64,7 @@ int main(int argc, char *argv[])
     ssize_t nwrite = write(fd,buf,nread);
     CHECK(nwrite == nread);
   }
-}
+}*/
 
 static inline void put32(uint8_t *p, size_t offset, uint32_t n)
 {

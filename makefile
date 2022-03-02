@@ -8,7 +8,7 @@ baseStation: tun.o
 	g++ src/baseStation.cpp tun.o -lpthread -lrf24 -g
 	sudo ./a.out
 
-tun.o:
+tun:
 	g++ -c src/tun.cpp -lcap -g -o tun.o
 #	sudo ./tun.o&
 #	sudo /sbin/ifconfig lg0 up

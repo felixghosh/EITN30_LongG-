@@ -1,0 +1,14 @@
+Torsdag:
+    steg 1: Se till att routing tables fukar
+    steg 2: fragmentering av paket
+Fredag:
+    steg 3: FÅ transimssions, ping, och ordning att funka (GRUNDKRAV, yay:D)
+    Steg 4: FTP
+Lördag:
+    Mer FTP
+    Steg 5: Analus av performance
+Söndag:
+    Steg 6: Skriva rapport
+
+
+Steg 7: Grännssnitt om det finns tid????

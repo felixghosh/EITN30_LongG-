@@ -126,10 +126,6 @@ void* sender(void* p_radio){
 
 }
 
-
-
-
-
 /**
  * make this node act as the transmitter
  */

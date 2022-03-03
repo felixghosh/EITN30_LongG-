@@ -6,20 +6,27 @@
 #include <RF24/RF24.h> // RF24, RF24_PA_LOW, delay()
 #include <pthread.h>
 #include <string.h>
-
+#include <unistd.h>
+#include "ip.hpp"
 #include "tun.hpp"
+#include "transbuf.hpp"
+#include <queue>
+
 
 using namespace std;
 
 void* sender(void* p_radio);
 void* receiver(void* p_radio);
+void* readTun(void* arg);
+void* writeTun(void* arg);
 
 RF24 radioSend(17, 0);
 RF24 radioReceive(27,60);
 
 
-char payload[32]; 
+char payload[32];
 
+TransBuf transBuf;
 
 void master(RF24 radio);
 void slave(RF24 radio);
@@ -28,8 +35,29 @@ void slave(RF24 radio);
 struct timespec startTimer, endTimer;
 uint32_t getMicros(); // prototype to get ellapsed time in microseconds
 
+void print_queue(std::deque<Frame*> q)
+{
+  while (!q.empty())
+  {
+    std::cout << q.front() << " ";
+    q.pop_front();
+  }
+  std::cout << std::endl;
+}
+
 int main(int argc, char** argv) {
-    pthread_t send, receive;
+    char data[28];
+    memset(data, 1, 28);
+    uint8_t size = 28;
+    uint16_t id = 12;
+    uint16_t num = 827;
+    Frame test(data, size, id, num, true);
+
+    char* c = test.serialize();
+
+    dumpHex(c, " ", sizeof c);
+
+    pthread_t send, receive, read_tun_thread, write_tun_thread;
 
     //Setup radiso
     RF24 *p_radio_send = (RF24*) malloc(sizeof(RF24));
@@ -43,6 +71,8 @@ int main(int argc, char** argv) {
     //Create threads
     pthread_create(&send, NULL, sender, p_radio_send);
     pthread_create(&receive, NULL, receiver, p_radio_receive);
+    pthread_create(&read_tun_thread, NULL, readTun, NULL);
+    pthread_create(&write_tun_thread, NULL, writeTun, NULL);
     
     //wait for threads to join
     void *ret; 
@@ -55,6 +85,35 @@ int main(int argc, char** argv) {
         exit(3);
     }
     else return 0;
+}
+
+void* readTun(void* arg){
+    printf("READTIME!\n");
+    char readbuf[1024];
+    memset(readbuf, 0, 1024);
+    while(true){
+        int x = read_tun(readbuf, sizeof readbuf);
+        std::string data(readbuf);
+        cout << data << endl;
+        std::string sep = " ";
+        dumpHex(readbuf, sep, x);
+        fragment_packet(readbuf, x, &transBuf);
+        print_queue(transBuf.queue);
+    }
+    pthread_exit(NULL);
+}
+
+void* writeTun(void* arg){
+    char writebuf[1024];
+    while(true){
+        memset(writebuf, 0, 1024);
+        strcpy(writebuf, "TJA");
+        write_tun(writebuf, sizeof writebuf);
+        //printf("NUUUU");
+        usleep(1000000);
+    }
+    
+    pthread_exit(NULL);
 }
 
 void* receiver(void* p_radio){
@@ -125,13 +184,6 @@ void* sender(void* p_radio){
 
 }
 
-
-
-
-
-/**
- * make this node act as the transmitter
- */
 void master(RF24 radio) {
     radio.stopListening();   
     unsigned int failure = 0;                                       // keep track of failures
@@ -193,9 +245,6 @@ void master(RF24 radio) {
     //cout << "Packet Error Rate estimated at : " << 100.0 / runtime << " packets/seconds" << " or a failure rate of " << 1.0 / payload << "."<< endl;
 }
 
-/**
- * make this node act as the receiver
- */
 void slave(RF24 radio) {
     radio.startListening();                                  // put radio in RX mode
 

@@ -1,4 +1,5 @@
 #include "tun.hpp"
+#include <stdlib.h>
 
 #define CHECKAUX(e,s)                            \
  ((e)? (void)0: (fprintf(stderr, "'%s' failed at %s:%d - %s\n", s, __FILE__, __LINE__,strerror(errno)), exit(0)))
@@ -7,7 +8,18 @@
 #define CHECKFD(e) (CHECKAUX((e)>=0,#e))
 #define STRING(e) #e
 
-void reflect(uint8_t *p, size_t nbytes);
+void dumpHex(char* data, std::string separator, size_t len) {
+  std::string result;
+
+  for (unsigned int i = 0; i < len; i++){
+    if (i > 0)
+      std::cout << separator;
+    printf("%02x", data[i]);
+  }
+  printf("\n");
+} 
+
+static int tun_fd;
 
 int tun_alloc(char *dev) 
 {
@@ -29,8 +41,8 @@ void setup_tun(std::string address){
    memset(dev,0,sizeof(dev));
    strncpy(dev, "lg0", 3);
    // Allocate the tun device
-  int fd = tun_alloc(dev);
-  if (fd < 0){
+  tun_fd = tun_alloc(dev);
+  if (tun_fd < 0){
     printf("Error creating tun device!");
     exit(0);
   }
@@ -39,6 +51,36 @@ void setup_tun(std::string address){
 
   std::string addr_command = "sudo ip addr add " + address + " dev lg0";
   system(addr_command.c_str());
+}
+
+void fragment_packet(char* packbuf, int len, TransBuf* transBuf){
+  uint16_t num;
+  bool end = false;
+  char data[28];
+  int nbrPack = len / 28+1;
+  for(num = 0; num < nbrPack; num++){
+    uint16_t id = rand() % 16384;
+    uint8_t i;
+    for(i = 0; i < 28; i++){
+      if(!data[i] || data[i] == '\0'){
+        data[i] == '\0';
+        end = true; 
+        break;
+      }
+      data[i] = packbuf[i+(28*num)];
+    }
+    Frame frame(data, i, id, num, end);
+    (*transBuf).append(&frame);
+  }
+}
+
+int read_tun(char* readbuf, size_t len){
+  //printf("tun_fd: %d\n", tun_fd);
+  return read(tun_fd, readbuf, len);
+}
+
+void write_tun(char* writebuf, size_t len){
+  write(tun_fd, writebuf, len);
 }
 
 /*int main(int argc, char *argv[])

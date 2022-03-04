@@ -11,6 +11,7 @@
 #include "tun.hpp"
 #include "transbuf.hpp"
 #include <queue>
+#include <list>
 
 
 using namespace std;
@@ -90,17 +91,29 @@ int main(int argc, char** argv) {
 }
 
 void* readTun(void* arg){
-    printf("READTIME!\n");
     char readbuf[1024];
+    char reconstructed[1024];
     memset(readbuf, 0, 1024);
+    memset(reconstructed, 0, 1024);
     while(true){
         int x = read_tun(readbuf, sizeof readbuf);
-        std::string data(readbuf);
-        cout << data << endl;
+        
         std::string sep = " ";
-        dumpHex(readbuf, sep, x);
-        fragment_packet(readbuf, x, &transBuf);
-        print_queue(transBuf.queue);
+        
+        if(((readbuf[0] & 0xF0) >> 4) == 4){           //Check for ipv4 packet
+            printf("data read!\n");
+            dumpHex(readbuf, sep, x);
+            fragment_packet(readbuf, x, &transBuf);
+            printf("packet fragmented!\n");
+            std::list<Frame> frames;
+            int len = transBuf.size();
+            for(int i = 0; i < len; i++)
+                frames.push_front(*(transBuf.getFirst()));
+            strcpy(reconstructed, reassemble_packet(frames, len));
+            printf("packet reassembled!\n");
+            dumpHex(reconstructed, sep, x);
+        }
+        //print_queue(transBuf.queue);
     }
     pthread_exit(NULL);
 }
@@ -193,51 +206,10 @@ void master(RF24 radio) {
     time_t t0 = time(&timer); 
     bool finished = false;
     while(!finished){
-        cout << "please enter the message you would like to send:" << endl;
-        string temp;
-        getline(cin, temp);
-        
-        char message[1024];
-        
-        strcpy(message, temp.c_str());
-        if(!strcmp(message, "quit")){
-            finished = true;
-            break;
+        while(transBuf.isEmpty()){
+            usleep(100000);
         }
-        cout << "SIZE OF TEMP " << temp.length() << endl;
-        int nbrPack = temp.length() / 32 + 1;   
-        int i;
-        int pack = 0;                                 
-        while (failure < 1000 && pack < nbrPack) {
-            for(i = 0; i < 32; i++){
-                if(message[i+(32*pack)] == '\0'){
-                    payload[i] == '\0'; 
-                    break;
-                }
-                else
-                    payload[i] = message[i+(32*pack)];
-            }
-            
-            clock_gettime(CLOCK_MONOTONIC_RAW, &startTimer);            // start the timer
-            bool report = radio.write(&payload, i);         // transmit & save the report
-            uint32_t timerEllapsed = getMicros();                       // end the timer
-
-            if (report) {
-                // payload was delivered
-                cout << "Transmission successful! Time to transmit = ";
-                cout << timerEllapsed;                                  // print the timer result
-                cout << " us. Sent: " << payload << endl;               // print payload sent
-                //payload += 0.01;                                        // increment float payload
-                pack++;   
-            } else {
-                // payload was not delivered
-                cout << "Transmission failed or timed out" << endl;
-                failure++;
-            }
-
-            // to make this example readable in the terminal
-            //delay(1000);  // slow transmissions down by 1 second
-        }
+        
     }
     time_t t1 = time(&timer);
     double runtime = difftime(t1, t0);

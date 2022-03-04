@@ -13,6 +13,8 @@ public:
     void append(Frame* frame);
     Frame* getFirst();
     TransBuf();
+    bool isEmpty();
+    int size();
 };
 
 #endif

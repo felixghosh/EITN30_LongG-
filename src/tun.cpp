@@ -1,5 +1,6 @@
 #include "tun.hpp"
 #include <stdlib.h>
+#include <list>
 
 #define CHECKAUX(e,s)                            \
  ((e)? (void)0: (fprintf(stderr, "'%s' failed at %s:%d - %s\n", s, __FILE__, __LINE__,strerror(errno)), exit(0)))
@@ -72,6 +73,17 @@ void fragment_packet(char* packbuf, int len, TransBuf* transBuf){
     Frame frame(data, i, id, num, end);
     (*transBuf).append(&frame);
   }
+}
+
+char* reassemble_packet(std::list<Frame> frames, int len){
+  frames.sort([](const Frame & a, const Frame & b){return a.num < b.num;});
+  char* packbuf = new char[1024];
+  memset(packbuf, 0, 1024);
+  for(int i = 0; i < len; i++){
+    strcat(packbuf, frames.front().data);
+    frames.pop_front();
+  }
+  return packbuf;
 }
 
 int read_tun(char* readbuf, size_t len){

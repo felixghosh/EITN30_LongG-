@@ -18,6 +18,8 @@
 
 
 #include "transbuf.hpp"
+#include "ip.hpp"
+#include <list>
 
 
 void reflect(uint8_t *p, size_t nbytes);
@@ -30,6 +32,7 @@ int read_tun(char* readbuf, size_t len);
 void write_tun(char* writebuf, size_t len);
 void dumpHex(char* data, std::string separator, size_t len);
 void fragment_packet(char* packbuf, int len, TransBuf* transBuf);
+char* reassemble_packet(std::list<Frame> frames, int len);
 
 
 #endif

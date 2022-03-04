@@ -33,7 +33,7 @@ Frame::Frame(char* buf){
     for(int i = 4; i < size - 4; i++){
         data[i-4] = buf[i];
     }
-    printf("num: %d, end: %d, size: %d, id: %d\n", num, end, size, id);
+    //printf("num: %d, end: %d, size: %d, id: %d\n", num, end, size, id);
     this->data = data;
     this->size = size;
     this->id = id;

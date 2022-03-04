@@ -9,12 +9,13 @@
 class Frame {   //Fragment of ip packet
 public:
     char* data;
-    int size;
-    int id;
-    int num;
+    uint8_t size;
+    uint16_t id;
+    uint16_t num;
     bool end;
 
     Frame(char* data, uint8_t size, uint16_t id, uint16_t num, bool end);
+    Frame(char* buf);
     char* serialize();
 };
 

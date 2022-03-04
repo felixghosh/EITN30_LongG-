@@ -55,7 +55,9 @@ int main(int argc, char** argv) {
 
     char* c = test.serialize();
 
-    dumpHex(c, " ", sizeof c);
+    dumpHex(c, " ", 32);
+
+    Frame test2(c);
 
     pthread_t send, receive, read_tun_thread, write_tun_thread;
 

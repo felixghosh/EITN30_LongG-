@@ -55,24 +55,29 @@ void setup_tun(std::string address){
 }
 
 void fragment_packet(char* packbuf, int len, TransBuf* transBuf){
-  uint16_t num;
-  bool end = false;
-  char data[28];
-  int nbrPack = len / 28+1;
-  for(num = 0; num < nbrPack; num++){
+    uint16_t num;
+    bool end = false;
+    char data[28];
+    int nbrPack = len % 28 == 0 ? len/28 : len / 28+1;
     uint16_t id = rand() % 16384;
-    uint8_t i;
-    for(i = 0; i < 28; i++){
-      if(!data[i] || data[i] == '\0'){
-        data[i] == '\0';
-        end = true; 
-        break;
-      }
-      data[i] = packbuf[i+(28*num)];
+    printf("len: %d\n", len);
+    for(num = 0; num < nbrPack; num++){
+        uint8_t i;
+        for(i = 0; i < 28; i++){
+            if(num*28 + i >= len){
+                data[i] == '\0';
+                end = true; 
+                break;
+            }
+            data[i] = packbuf[i+(28*num)];
+        }
+        //printf("ASIGNING SIZE: %d\n", i);
+        Frame frame(data, i, id, num, end);
+        dumpHex(frame.data, " ", i);
+        transBuf->append(&frame);
     }
-    Frame frame(data, i, id, num, end);
-    (*transBuf).append(&frame);
-  }
+    transBuf->printSizeAll();
+
 }
 
 char* reassemble_packet(std::list<Frame> frames, int len){

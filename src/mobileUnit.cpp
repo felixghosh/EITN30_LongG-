@@ -53,6 +53,10 @@ int main(int argc, char** argv) {
     uint16_t id = 12;
     uint16_t num = 827;
     Frame test(data, size, id, num, true);
+    printf("test1: %d\n", test.size);
+    //transBuf.append(&test);
+    //Frame* f = transBuf.getFirst();
+    //printf("test2: %d\n", f->size);
 
     char* c = test.serialize();
 
@@ -99,16 +103,29 @@ void* readTun(void* arg){
         int x = read_tun(readbuf, sizeof readbuf);
         
         std::string sep = " ";
-        
         if(((readbuf[0] & 0xF0) >> 4) == 4){           //Check for ipv4 packet
+        
             printf("data read!\n");
             dumpHex(readbuf, sep, x);
-            fragment_packet(readbuf, x, &transBuf);
+            TransBuf* t = &transBuf;
+            fragment_packet(readbuf, x, t);
+            t->printSizeAll();
             printf("packet fragmented!\n");
+            
             std::list<Frame> frames;
+            transBuf.peekFrontSize();
             int len = transBuf.size();
-            for(int i = 0; i < len; i++)
-                frames.push_front(*(transBuf.getFirst()));
+            
+            for(int i = 0; i < len; i++){
+                //dumpHex((*transBuf.queue.front()).data, " ", 28);//frames.front().data);
+                //printf("size: %d\n", transBuf.size());
+                Frame* f = transBuf.getFirst();
+                
+                printf("Framesize: %d\n", f->size);
+                //dumpHex((*f).data, " ", 28);
+                frames.push_front(*f);
+                //dumpHex(frames.front().data, " ", frames.front().size);
+            }
             strcpy(reconstructed, reassemble_packet(frames, len));
             printf("packet reassembled!\n");
             dumpHex(reconstructed, sep, x);
@@ -206,9 +223,9 @@ void master(RF24 radio) {
     time_t t0 = time(&timer); 
     bool finished = false;
     while(!finished){
-        while(transBuf.isEmpty()){
+        /*while(transBuf.isEmpty()){
             usleep(100000);
-        }
+        }*/
         
     }
     time_t t1 = time(&timer);
@@ -226,7 +243,7 @@ void slave(RF24 radio) {
     char message[1024];
     
     bool done = false;
-    while(!done && time(nullptr) - startTimer < 60){
+    while(!done && time(nullptr) - startTimer < 600){
         bool finished = false;
         int pack = 0;
         while (time(nullptr) - startTimer < 60 && !finished) {                 // use 6 second timeout

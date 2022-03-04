@@ -7,6 +7,7 @@ Frame::Frame(char* data, uint8_t size, uint16_t id, uint16_t num, bool end){
     this->id = id;
     this->num = num;
     this->end = end;
+    //printf("size in constructor = %d\n", this->size);
 }
 
 char* Frame::serialize() {

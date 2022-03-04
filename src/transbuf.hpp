@@ -15,6 +15,8 @@ public:
     TransBuf();
     bool isEmpty();
     int size();
+    void peekFrontSize();
+    void printSizeAll();
 };
 
 #endif

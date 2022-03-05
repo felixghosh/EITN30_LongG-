@@ -6,7 +6,7 @@ TransBuf::TransBuf(){
 
 void TransBuf::append(Frame* frame){
     pthread_mutex_lock(&mutex);
-    queue.push_back(frame);
+    queue.push(frame);
     //printf("after push back: %d\n", queue.front()->size);
     pthread_mutex_unlock(&mutex);
 }
@@ -20,7 +20,7 @@ Frame* TransBuf::getFirst(){
 
     Frame* frame = queue.front();
     //printf("size in buf get first: %d\n", frame->size);
-    queue.pop_front();
+    queue.pop();
     pthread_mutex_unlock(&mutex);
     return frame;
 }
@@ -45,11 +45,11 @@ void TransBuf::peekFrontSize(){
     pthread_mutex_unlock(&mutex);
 }
 
-void TransBuf::printSizeAll() {
+/*void TransBuf::printSizeAll() {
     pthread_mutex_lock(&mutex);
     for(int i = 0; i < queue.size(); i++) {
         printf("schlong size: %d\n", queue[i]->size);
     }
     pthread_mutex_unlock(&mutex);
 
-}
+}*/

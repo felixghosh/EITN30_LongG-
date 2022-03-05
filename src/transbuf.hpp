@@ -2,12 +2,12 @@
 #define TRANSBUF
 
 #include "ip.hpp"
-#include <deque>
+#include <queue>
 #include <pthread.h>
 
 class TransBuf {
 public:
-    std::deque<Frame*> queue;
+    std::queue<Frame*> queue;
     pthread_mutex_t mutex;
 
     void append(Frame* frame);
@@ -16,7 +16,7 @@ public:
     bool isEmpty();
     int size();
     void peekFrontSize();
-    void printSizeAll();
+    //void printSizeAll();
 };
 
 #endif

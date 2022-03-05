@@ -27,7 +27,7 @@ RF24 radioReceive(27,60);
 
 char payload[32];
 
-TransBuf transBuf;
+TransBuf *transBuf = new TransBuf;
 
 void master(RF24 radio);
 void slave(RF24 radio);
@@ -36,33 +36,51 @@ void slave(RF24 radio);
 struct timespec startTimer, endTimer;
 uint32_t getMicros(); // prototype to get ellapsed time in microseconds
 
-void print_queue(std::deque<Frame*> q)
+void print_queue(std::queue<Frame*> q)
 {
   while (!q.empty())
   {
-    std::cout << q.front() << " ";
-    q.pop_front();
+    std::cout << q.front()->toString() << " ";
+    q.pop();
+    printf("size of queue: %d\n", q.size());
   }
   std::cout << std::endl;
 }
 
 int main(int argc, char** argv) {
+    /*queue<Frame*> testq;
+    
     char data[28];
     memset(data, 1, 28);
-    uint8_t size = 28;
+    uint16_t size = 28;
     uint16_t id = 12;
-    uint16_t num = 827;
-    Frame test(data, size, id, num, true);
-    printf("test1: %d\n", test.size);
+    uint16_t num;
+    num = 827;
+    Frame test1(data, size, id, num, true);
+    num += 1;
+    Frame test2(data, size, id, num, true);
+    num += 1;
+    Frame test3(data, size, id, num, true);
+    testq.push(&test1);
+    cout << testq.front()->toString() << endl;
+    testq.push(&test2);
+    cout << testq.front()->toString() << endl;
+    testq.push(&test3);
+    cout << testq.front()->toString() << endl;
+    for(int i = 0; i < 3; i++){
+        cout << testq.front()->toString() << endl;
+        testq.pop();
+    }*/
+    //printf("test1: %d\n", test.size);
     //transBuf.append(&test);
     //Frame* f = transBuf.getFirst();
     //printf("test2: %d\n", f->size);
 
-    char* c = test.serialize();
+    /*char* c = test.serialize();
 
-    dumpHex(c, " ", 32);
+    //dumpHex(c, " ", 32);
 
-    Frame test2(c);
+    Frame test2(c);*/
 
     pthread_t send, receive, read_tun_thread, write_tun_thread;
 
@@ -76,13 +94,17 @@ int main(int argc, char** argv) {
     setup_tun("10.0.0.2");
 
     //Create threads
-    pthread_create(&send, NULL, sender, p_radio_send);
-    pthread_create(&receive, NULL, receiver, p_radio_receive);
+    //pthread_create(&send, NULL, sender, p_radio_send);
+    //pthread_create(&receive, NULL, receiver, p_radio_receive);
     pthread_create(&read_tun_thread, NULL, readTun, NULL);
-    pthread_create(&write_tun_thread, NULL, writeTun, NULL);
+    //pthread_create(&write_tun_thread, NULL, writeTun, NULL);
     
     //wait for threads to join
-    void *ret; 
+    void *ret;
+    if(pthread_join(read_tun_thread, &ret) != 0){
+        perror("pthread_create() error");
+        exit(3);
+    } 
     if(pthread_join(send, &ret) != 0){
         perror("pthread_create() error");
         exit(3);
@@ -107,22 +129,60 @@ void* readTun(void* arg){
         
             printf("data read!\n");
             dumpHex(readbuf, sep, x);
-            TransBuf* t = &transBuf;
-            fragment_packet(readbuf, x, t);
-            t->printSizeAll();
-            printf("packet fragmented!\n");
+            //TransBuf* t = &transBuf;
+            //fragment_packet(readbuf, x, transBuf);
+
+            uint16_t num;
+            bool end = false;
+            char* data;
+            memset(data, 0, 28);
+            int nbrPack = x % 28 == 0 ? x/28 : x / 28+1;
+            uint16_t id = rand() % 16384;
+            uint16_t i;
+            printf("len: %d\n", x);
+            for(num = 0; num < nbrPack; num++){
+                data = new char[28];
+                for(i = 0; i < 28; i++){
+                    if(num*28 + i >= x-1){
+                        end = true; 
+                    }
+                    data[i] = readbuf[i+(28*num)];
+                }
+                //printf("ASIGNING SIZE: %d\n", i);
+                Frame* f = new Frame(data, i + 0, id + 0, num + 0, end + 0);
+                printf("address %d\n", f);
+                //Frame f2(data, i + 0, id + 0, num + 10, end + 0);
+                //std::cout << f.toString() << std::endl;
+                dumpHex(f->data, " ", i);
+                transBuf->queue.push(f);
+                //std::cout << transBuf->queue.front()->toString() << std::endl;
+                /*transBuf->queue.push(&f2);
+                std::cout << transBuf->queue.front()->toString() << std::endl;*/
+            }
+            /*for(int i = 0; i < 3; i++){
+                cout << transBuf->queue.front()->toString() << endl;
+                //cout << transBuf->queue.back()->toString() << endl;
+                transBuf->queue.pop();
+            }*/
+            //print_queue(transBuf->queue);
+
+
+            //printf("pointer after fragment: %d\n", transBuf);
+            //t->printSizeAll();
+            //printf("packet fragmented!\n");
             
             std::list<Frame> frames;
-            transBuf.peekFrontSize();
-            int len = transBuf.size();
+            transBuf->peekFrontSize();
+            int len = transBuf->size();
             
             for(int i = 0; i < len; i++){
                 //dumpHex((*transBuf.queue.front()).data, " ", 28);//frames.front().data);
-                //printf("size: %d\n", transBuf.size());
-                Frame* f = transBuf.getFirst();
-                
-                printf("Framesize: %d\n", f->size);
-                //dumpHex((*f).data, " ", 28);
+                //printf("size: %d\n", transBuf->size());
+                Frame* f = transBuf->queue.front();//transBuf->getFirst();
+                transBuf->queue.pop();
+                std::cout << f->toString() << std::endl;
+                //printf("Framesize: %d\n", f->getSize());
+                dumpHex(f->data, " ", 28);
                 frames.push_front(*f);
                 //dumpHex(frames.front().data, " ", frames.front().size);
             }

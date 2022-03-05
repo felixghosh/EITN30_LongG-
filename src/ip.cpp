@@ -1,7 +1,8 @@
 #include "ip.hpp"
 #include "tun.hpp"
+#include <sstream>
 
-Frame::Frame(char* data, uint8_t size, uint16_t id, uint16_t num, bool end){
+Frame::Frame(char* data, uint16_t size, uint16_t id, uint16_t num, bool end){
     this->data = data;
     this->size = size;
     this->id = id;
@@ -28,7 +29,7 @@ char* Frame::serialize() {
 Frame::Frame(char* buf){
     uint16_t num = (buf[0] << 4) | ((buf[1] &0xF0) >> 4);
     bool end = (buf[1] & 0x08) >> 3;
-    uint8_t size = ((buf[1] & 0x07) << 2) | ((buf[2] & 0xC0) >> 6);
+    uint16_t size = ((buf[1] & 0x07) << 2) | ((buf[2] & 0xC0) >> 6);
     uint16_t id = ((buf[2] & 0x3F) << 8) | (buf[3] & 0xFF);
     char* data = new char[size];
     for(int i = 4; i < size - 4; i++){
@@ -40,4 +41,19 @@ Frame::Frame(char* buf){
     this->id = id;
     this->num = num;
     this->end = end;
+}
+
+std::string Frame::toString(){
+    //printf("size in to string: %s\n", this->size);
+    std::stringstream s;
+    s << "id: " << id;
+    s << "\nnum: " << num;
+    s << "\nsize: " << size;
+    s << "\nend: " << end << std::endl;
+
+    return s.str();
+}
+
+int Frame::getSize(){
+    return size;
 }

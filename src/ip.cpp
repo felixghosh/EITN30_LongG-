@@ -32,7 +32,7 @@ Frame::Frame(char* buf){
     uint16_t size = ((buf[1] & 0x07) << 2) | ((buf[2] & 0xC0) >> 6);
     uint16_t id = ((buf[2] & 0x3F) << 8) | (buf[3] & 0xFF);
     char* data = new char[size];
-    for(int i = 4; i < size - 4; i++){
+    for(int i = 4; i < size + 4; i++){
         data[i-4] = buf[i];
     }
     //printf("num: %d, end: %d, size: %d, id: %d\n", num, end, size, id);

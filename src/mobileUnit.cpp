@@ -48,16 +48,15 @@ void print_queue(std::queue<Frame*> q)
 }
 
 int main(int argc, char** argv) {
-    /*queue<Frame*> testq;
+    //queue<Frame*> testq;
     
     char data[28];
     memset(data, 1, 28);
     uint16_t size = 28;
     uint16_t id = 12;
-    uint16_t num;
-    num = 827;
-    Frame test1(data, size, id, num, true);
-    num += 1;
+    uint16_t num = 827;
+    Frame test(data, size, id, num, true);
+    /*num += 1;
     Frame test2(data, size, id, num, true);
     num += 1;
     Frame test3(data, size, id, num, true);
@@ -72,15 +71,18 @@ int main(int argc, char** argv) {
         testq.pop();
     }*/
     //printf("test1: %d\n", test.size);
-    //transBuf.append(&test);
-    //Frame* f = transBuf.getFirst();
+    transBuf->append(&test);
+    Frame* f = transBuf->getFirst();
     //printf("test2: %d\n", f->size);
+    std::cout << f->toString() << std::endl;
+    dumpHex(f->data, " ", 28);
+    char* c = test.serialize();
 
-    /*char* c = test.serialize();
+    dumpHex(c, " ", 32);
 
-    //dumpHex(c, " ", 32);
-
-    Frame test2(c);*/
+    Frame test2(c);
+    std::cout << test2.toString() << std::endl;
+    dumpHex(test2.data, " ", 28);
 
     pthread_t send, receive, read_tun_thread, write_tun_thread;
 
@@ -118,9 +120,7 @@ int main(int argc, char** argv) {
 
 void* readTun(void* arg){
     char readbuf[1024];
-    char reconstructed[1024];
-    memset(readbuf, 0, 1024);
-    memset(reconstructed, 0, 1024);
+    char* reconstructed;
     while(true){
         int x = read_tun(readbuf, sizeof readbuf);
         
@@ -172,12 +172,12 @@ void* readTun(void* arg){
             //printf("packet fragmented!\n");
             
             std::list<Frame> frames;
-            transBuf->peekFrontSize();
+            //transBuf->peekFrontSize();
             int len = transBuf->size();
             
             for(int i = 0; i < len; i++){
                 //dumpHex((*transBuf.queue.front()).data, " ", 28);//frames.front().data);
-                //printf("size: %d\n", transBuf->size());
+                printf("size: %d\n", transBuf->size());
                 Frame* f = transBuf->queue.front();//transBuf->getFirst();
                 transBuf->queue.pop();
                 std::cout << f->toString() << std::endl;
@@ -186,7 +186,7 @@ void* readTun(void* arg){
                 frames.push_front(*f);
                 //dumpHex(frames.front().data, " ", frames.front().size);
             }
-            strcpy(reconstructed, reassemble_packet(frames, len));
+            reconstructed = reassemble_packet(frames, len);
             printf("packet reassembled!\n");
             dumpHex(reconstructed, sep, x);
         }

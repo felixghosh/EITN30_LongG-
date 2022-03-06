@@ -12,6 +12,10 @@
 #include "transbuf.hpp"
 #include <queue>
 #include <list>
+#include <arpa/inet.h>
+
+#define MUADDR "10.0.0.2"
+#define BSADDR "10.0.0.1"
 
 
 using namespace std;
@@ -25,7 +29,7 @@ RF24 radioSend(17, 0);
 RF24 radioReceive(27,60);
 
 
-char payload[32];
+//char* payload;
 
 TransBuf *transBuf = new TransBuf;
 
@@ -36,7 +40,7 @@ void slave(RF24 radio);
 struct timespec startTimer, endTimer;
 uint32_t getMicros(); // prototype to get ellapsed time in microseconds
 
-void print_queue(std::queue<Frame*> q)
+void print_queue(queue<Frame*> q)
 {
   while (!q.empty())
   {
@@ -44,46 +48,10 @@ void print_queue(std::queue<Frame*> q)
     q.pop();
     printf("size of queue: %d\n", q.size());
   }
-  std::cout << std::endl;
+  cout << endl;
 }
 
 int main(int argc, char** argv) {
-    //queue<Frame*> testq;
-    
-    char data[28];
-    memset(data, 1, 28);
-    uint16_t size = 28;
-    uint16_t id = 12;
-    uint16_t num = 827;
-    Frame test(data, size, id, num, true);
-    /*num += 1;
-    Frame test2(data, size, id, num, true);
-    num += 1;
-    Frame test3(data, size, id, num, true);
-    testq.push(&test1);
-    cout << testq.front()->toString() << endl;
-    testq.push(&test2);
-    cout << testq.front()->toString() << endl;
-    testq.push(&test3);
-    cout << testq.front()->toString() << endl;
-    for(int i = 0; i < 3; i++){
-        cout << testq.front()->toString() << endl;
-        testq.pop();
-    }*/
-    //printf("test1: %d\n", test.size);
-    transBuf->append(&test);
-    Frame* f = transBuf->getFirst();
-    //printf("test2: %d\n", f->size);
-    std::cout << f->toString() << std::endl;
-    dumpHex(f->data, " ", 28);
-    char* c = test.serialize();
-
-    dumpHex(c, " ", 32);
-
-    Frame test2(c);
-    std::cout << test2.toString() << std::endl;
-    dumpHex(test2.data, " ", 28);
-
     pthread_t send, receive, read_tun_thread, write_tun_thread;
 
     //Setup radiso
@@ -96,10 +64,10 @@ int main(int argc, char** argv) {
     setup_tun("10.0.0.2");
 
     //Create threads
-    //pthread_create(&send, NULL, sender, p_radio_send);
-    //pthread_create(&receive, NULL, receiver, p_radio_receive);
+    pthread_create(&send, NULL, sender, p_radio_send);
+    pthread_create(&receive, NULL, receiver, p_radio_receive);
     pthread_create(&read_tun_thread, NULL, readTun, NULL);
-    //pthread_create(&write_tun_thread, NULL, writeTun, NULL);
+    pthread_create(&write_tun_thread, NULL, writeTun, NULL);
     
     //wait for threads to join
     void *ret;
@@ -119,59 +87,29 @@ int main(int argc, char** argv) {
 }
 
 void* readTun(void* arg){
-    char readbuf[1024];
+    char readBuf[1024];
     char* reconstructed;
     while(true){
-        int x = read_tun(readbuf, sizeof readbuf);
+        int x = read_tun(readBuf, sizeof readBuf);
         
-        std::string sep = " ";
-        if(((readbuf[0] & 0xF0) >> 4) == 4){           //Check for ipv4 packet
-        
-            printf("data read!\n");
-            dumpHex(readbuf, sep, x);
-            //TransBuf* t = &transBuf;
-            //fragment_packet(readbuf, x, transBuf);
+        string sep = " ";
+        if(((readBuf[0] & 0xF0) >> 4) == 4){           //Check for ipv4 packet
+            char destBytes[4];
+            for(int i = 16; i < 20; i++)
+                destBytes[i - 16] = readBuf[i];
+            char dest[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, destBytes, dest, INET_ADDRSTRLEN);
+            printf("dest: %s\n", dest);
 
-            uint16_t num;
-            bool end = false;
-            char* data;
-            memset(data, 0, 28);
-            int nbrPack = x % 28 == 0 ? x/28 : x / 28+1;
-            uint16_t id = rand() % 16384;
-            uint16_t i;
-            printf("len: %d\n", x);
-            for(num = 0; num < nbrPack; num++){
-                data = new char[28];
-                for(i = 0; i < 28; i++){
-                    if(num*28 + i >= x-1){
-                        end = true; 
-                    }
-                    data[i] = readbuf[i+(28*num)];
-                }
-                //printf("ASIGNING SIZE: %d\n", i);
-                Frame* f = new Frame(data, i + 0, id + 0, num + 0, end + 0);
-                printf("address %d\n", f);
-                //Frame f2(data, i + 0, id + 0, num + 10, end + 0);
-                //std::cout << f.toString() << std::endl;
-                dumpHex(f->data, " ", i);
-                transBuf->queue.push(f);
-                //std::cout << transBuf->queue.front()->toString() << std::endl;
-                /*transBuf->queue.push(&f2);
-                std::cout << transBuf->queue.front()->toString() << std::endl;*/
+            if(strcmp(dest, MUADDR) != 0){
+                //printf("Not for us!\n");
+                fragment_packet(readBuf, x, transBuf);      //Puts frames in transbuf
             }
-            /*for(int i = 0; i < 3; i++){
-                cout << transBuf->queue.front()->toString() << endl;
-                //cout << transBuf->queue.back()->toString() << endl;
-                transBuf->queue.pop();
-            }*/
-            //print_queue(transBuf->queue);
-
-
-            //printf("pointer after fragment: %d\n", transBuf);
-            //t->printSizeAll();
-            //printf("packet fragmented!\n");
+            else
+                printf("For us!\n");
             
-            std::list<Frame> frames;
+            
+           /* std::list<Frame> frames;
             //transBuf->peekFrontSize();
             int len = transBuf->size();
             
@@ -188,9 +126,8 @@ void* readTun(void* arg){
             }
             reconstructed = reassemble_packet(frames, len);
             printf("packet reassembled!\n");
-            dumpHex(reconstructed, sep, x);
+            dumpHex(reconstructed, sep, x);*/
         }
-        //print_queue(transBuf.queue);
     }
     pthread_exit(NULL);
 }
@@ -228,7 +165,7 @@ void* receiver(void* p_radio){
     // It is very helpful to think of an address as a path instead of as
     // an identifying device destination
 
-    radio.setPayloadSize(sizeof(payload));
+    radio.setPayloadSize(32);
 
     radio.setPALevel(RF24_PA_LOW);
 
@@ -262,7 +199,7 @@ void* sender(void* p_radio){
     // It is very helpful to think of an address as a path instead of as
     // an identifying device destination;
 
-    radio.setPayloadSize(sizeof(payload));
+    radio.setPayloadSize(32);
 
     radio.setPALevel(RF24_PA_LOW);
 
@@ -277,15 +214,34 @@ void* sender(void* p_radio){
 }
 
 void master(RF24 radio) {
+    char* payload;
     radio.stopListening();   
     unsigned int failure = 0;                                       // keep track of failures
     time_t timer;
     time_t t0 = time(&timer); 
     bool finished = false;
     while(!finished){
-        /*while(transBuf.isEmpty()){
+        while(transBuf->isEmpty()){
             usleep(100000);
-        }*/
+        }
+        printf("MASTER: Starting transmission!\n");
+        Frame* f = transBuf->getFirst();
+        payload = f->serialize();
+        clock_gettime(CLOCK_MONOTONIC_RAW, &startTimer);            // start the timer 
+        bool success = radio.write(payload, f->size+4);
+        uint32_t timerEllapsed = getMicros();                       // end the timer
+        
+        if (success) {
+            // payload was delivered
+            cout << "Transmission successful! Time to transmit = ";
+            cout << timerEllapsed;                                  // print the timer result
+            cout << " us. Sent: " << payload << endl;               // print payload sent
+            //payload += 0.01;    
+        } else {
+            // payload was not delivered
+            cout << "Transmission failed or timed out" << endl;
+            failure++;
+        }
         
     }
     time_t t1 = time(&timer);
@@ -301,7 +257,7 @@ void slave(RF24 radio) {
 
     time_t startTimer = time(nullptr);                       // start a timer
     char message[1024];
-    
+    char payload [32];
     bool done = false;
     while(!done && time(nullptr) - startTimer < 600){
         bool finished = false;

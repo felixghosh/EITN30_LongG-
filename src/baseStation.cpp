@@ -6,6 +6,15 @@
 #include <RF24/RF24.h> // RF24, RF24_PA_LOW, delay()
 #include <pthread.h>
 #include <string.h>
+#include <unistd.h>
+#include "ip.hpp"
+#include "tun.hpp"
+#include "transbuf.hpp"
+#include <queue>
+#include <list>
+#include <arpa/inet.h>
+#define MUADDR "10.0.0.2"
+#define BSADDR "10.0.0.1"
 
 #include "tun.hpp"
 
@@ -203,29 +212,35 @@ void slave(RF24 radio) {
     while(!done){
         bool finished = false;
         int pack = 0;
+        std::list<Frame> frames;
         while (!finished) {                 // use 6 second timeout
             uint8_t pipe;
             if (radio.available(&pipe)) {                        // is there a payload? get the pipe number that recieved it
                 uint8_t bytes = radio.getPayloadSize();          // get the size of the payload
                 radio.read(&payload, bytes);                     // fetch payload from FIFO
-
-                for(int i = 0; i < 32; i++){
+                Frame f(payload);
+                frames.push_front(f);
+                if(f.end)
+                    finished = true;
+                /*for(int i = 0; i < 32; i++){
                     message[i + (32*pack)] = payload[i];
                     if(payload[i] == '\0'){
                         finished = true;
                         break;
                     }
-                }
+                }*/
                 pack++;
 
-                cout << "Received " << (unsigned int)bytes;      // print the size of the payload
+                /*cout << "Received " << (unsigned int)bytes;      // print the size of the payload
                 cout << " bytes on pipe " << (unsigned int)pipe; // print the pipe number
-                cout << ": " << payload << endl;                 // print the payload's value
+                cout << ": " << payload << endl;*/                 // print the payload's value
                 startTimer = time(nullptr);                      // reset timer
             }
         }
-        if(finished)
-            cout << "Full message received: " << message << endl;
+        char* packet = reassemble_packet(frames, pack);
+        printf("packet reassembled!\n");
+        dumpHex(packet, " ", 84);
+        //cout << "Full message received: " << message << endl;
     }
     if(done)
         cout << "Done! Exiting recevie!" << endl;

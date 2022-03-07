@@ -25,6 +25,8 @@ void* receiver(void* p_radio);
 void* readTun(void* arg);
 void* writeTun(void* arg);
 
+pthread_mutex_t mutex;
+
 RF24 radioSend(17, 0);
 RF24 radioReceive(27,60);
 
@@ -32,6 +34,7 @@ RF24 radioReceive(27,60);
 //char* payload;
 
 TransBuf *transBuf = new TransBuf;
+map<int,list<Frame>> recvMap; 
 
 void master(RF24 radio);
 void slave(RF24 radio);
@@ -53,6 +56,7 @@ void print_queue(queue<Frame*> q)
 
 int main(int argc, char** argv) {
     pthread_t send, receive, read_tun_thread, write_tun_thread;
+    pthread_mutex_init(&mutex, NULL);
 
     //Setup radiso
     RF24 *p_radio_send = (RF24*) malloc(sizeof(RF24));
@@ -72,17 +76,22 @@ int main(int argc, char** argv) {
     //wait for threads to join
     void *ret;
     if(pthread_join(read_tun_thread, &ret) != 0){
-        perror("pthread_create() error");
+        perror("pthread_join() error");
+        exit(3);
+    }
+    if(pthread_join(write_tun, &ret) != 0){
+        perror("pthread_join() error");
         exit(3);
     } 
     if(pthread_join(send, &ret) != 0){
-        perror("pthread_create() error");
+        perror("pthread_join() error");
         exit(3);
     }
-    else if(pthread_join(receive, &ret) != 0){
-        perror("pthread_create() error");
+    if(pthread_join(receive, &ret) != 0){
+        perror("pthread_join() error");
         exit(3);
     }
+    
     else return 0;
 }
 
@@ -107,26 +116,6 @@ void* readTun(void* arg){
             }
             else
                 printf("For us!\n");
-            
-            
-           /* std::list<Frame> frames;
-            //transBuf->peekFrontSize();
-            int len = transBuf->size();
-            
-            for(int i = 0; i < len; i++){
-                //dumpHex((*transBuf.queue.front()).data, " ", 28);//frames.front().data);
-                printf("size: %d\n", transBuf->size());
-                Frame* f = transBuf->queue.front();//transBuf->getFirst();
-                transBuf->queue.pop();
-                std::cout << f->toString() << std::endl;
-                //printf("Framesize: %d\n", f->getSize());
-                dumpHex(f->data, " ", 28);
-                frames.push_front(*f);
-                //dumpHex(frames.front().data, " ", frames.front().size);
-            }
-            reconstructed = reassemble_packet(frames, len);
-            printf("packet reassembled!\n");
-            dumpHex(reconstructed, sep, x);*/
         }
     }
     pthread_exit(NULL);

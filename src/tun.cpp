@@ -9,10 +9,10 @@
 #define CHECKFD(e) (CHECKAUX((e)>=0,#e))
 #define STRING(e) #e
 
-void dumpHex(char* data, std::string separator, size_t len) {
-  std::string result;
-
-  for (unsigned int i = 0; i < len; i++){
+void dumpHex(char* data, std::string separator, size_t len) 
+{
+  for (unsigned int i = 0; i < len; i++)
+  {
     if (i > 0)
       std::cout << separator;
     printf("%02x", data[i]);
@@ -48,8 +48,9 @@ void setup_tun(std::string address){
     exit(0);
   }
 
-  system("sudo /sbin/ifconfig lg0 up");
+  //system("sudo /sbin/ifconfig lg0 up");
 
+  system("sudo ip link set lg0 up");
   std::string addr_command = "sudo ip addr add " + address + " dev lg0";
   system(addr_command.c_str());
 }

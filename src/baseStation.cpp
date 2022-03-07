@@ -23,6 +23,10 @@ using namespace std;
 
 void* sender(void* p_radio);
 void* receiver(void* p_radio);
+void* readTun(void* arg);
+void* writeTun(void* arg);
+
+pthread_mutex_t mutex;
 
 RF24 radioSend(17, 0);
 RF24 radioReceive(27,60);
@@ -41,7 +45,8 @@ struct timespec startTimer, endTimer;
 uint32_t getMicros(); // prototype to get ellapsed time in microseconds
 
 int main(int argc, char** argv) {
-    pthread_t send, receive;
+    pthread_t send, receive, read_tun_thread, write_tun_thread;
+    pthread_mutex_init(&mutex, NULL);
 
     //Setup radios
     RF24 *p_radio_send = (RF24*) malloc(sizeof(RF24));
@@ -55,19 +60,85 @@ int main(int argc, char** argv) {
     //Create threads
     pthread_create(&send, NULL, sender, p_radio_send);
     pthread_create(&receive, NULL, receiver, p_radio_receive);
+    pthread_create(&read_tun_thread, NULL, readTun, NULL);
+    pthread_create(&write_tun_thread, NULL, writeTun, NULL);
 
     //wait for threads to join
-    void *ret; 
-    if(pthread_join(send, &ret) != 0){
-        perror("pthread_create() error");
+    void *ret;
+    if(pthread_join(read_tun_thread, &ret) != 0){
+        perror("pthread_join() error");
         exit(3);
     }
-    else if(pthread_join(receive, &ret) != 0){
-        perror("pthread_create() error");
+    if(pthread_join(write_tun_thread, &ret) != 0){
+        perror("pthread_join() error");
+        exit(3);
+    } 
+    if(pthread_join(send, &ret) != 0){
+        perror("pthread_join() error");
+        exit(3);
+    }
+    if(pthread_join(receive, &ret) != 0){
+        perror("pthread_join() error");
         exit(3);
     }
     else return 0;
     
+}
+
+void* readTun(void* arg){
+    printf("READ TUN\n");
+    char readBuf[1024];
+    char* reconstructed;
+    while(true){
+        int x = read_tun(readBuf, sizeof readBuf);
+        
+        
+        string sep = " ";
+        if(((readBuf[0] & 0xF0) >> 4) == 4){         //Check for ipv4 packet
+            printf("READ TUN igen\n");          
+            char destBytes[4];
+            for(int i = 16; i < 20; i++)
+                destBytes[i - 16] = readBuf[i];
+            char dest[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, destBytes, dest, INET_ADDRSTRLEN);
+            printf("dest: %s\n", dest);
+
+            if(strcmp(dest, BSADDR) != 0){
+                printf("Not for us!\n");
+                fragment_packet(readBuf, x, transBuf);      //Puts frames in transbuf
+            }
+            else
+                printf("For us!\n");
+        }
+    }
+    pthread_exit(NULL);
+}
+
+void* writeTun(void* arg){
+    char writebuf[1024];
+    while(true){
+        pthread_mutex_lock(&mutex);
+        map<int, list<Frame>>::iterator itr = recvMap.begin();
+        for(itr; itr != recvMap.end(); itr++){
+            if(itr->second.back().end == true) {
+                char* packet = reassemble_packet(itr->second, itr->second.size());
+                
+                printf("packet reassembled!\n");
+                //dumpHex(packet, " ", 84);
+                int len = packet[3];
+                write_tun(packet, len);
+                printf("WRITTEN TO TUN\n");
+                break;
+            }
+        }
+        recvMap.erase(itr->first);
+        pthread_mutex_unlock(&mutex);
+        
+        
+        usleep(1000000);
+    }
+    
+    pthread_exit(NULL);
 }
 
 void* receiver(void* p_radio){
@@ -142,57 +213,35 @@ void* sender(void* p_radio){
  * make this node act as the transmitter
  */
 void master(RF24 radio) {
+    char* payload;
     radio.stopListening();   
     unsigned int failure = 0;                                       // keep track of failures
     time_t timer;
     time_t t0 = time(&timer); 
     bool finished = false;
     while(!finished){
-        cout << "please enter the message you would like to send:" << endl;
-        string temp;
-        getline(cin, temp);
-        
-        char message[1024];
-        
-        strcpy(message, temp.c_str());
-        if(!strcmp(message, "quit")){
-            finished = true;
-            break;
+        while(transBuf->isEmpty()){
+            usleep(100000);
         }
-        cout << "SIZE OF TEMP " << temp.length() << endl;
-        int nbrPack = temp.length() / 32 + 1;   
-        int i;
-        int pack = 0;                                 
-        while (failure < 1000 && pack < nbrPack) {
-            for(i = 0; i < 32; i++){
-                if(message[i+(32*pack)] == '\0'){
-                    payload[i] == '\0'; 
-                    break;
-                }
-                else
-                    payload[i] = message[i+(32*pack)];
-            }
-            
-            clock_gettime(CLOCK_MONOTONIC_RAW, &startTimer);            // start the timer
-            bool report = radio.write(&payload, i);         // transmit & save the report
-            uint32_t timerEllapsed = getMicros();                       // end the timer
-
-            if (report) {
-                // payload was delivered
-                cout << "Transmission successful! Time to transmit = ";
-                cout << timerEllapsed;                                  // print the timer result
-                cout << " us. Sent: " << payload << endl;               // print payload sent
-                //payload += 0.01;                                        // increment float payload
-                pack++;   
-            } else {
-                // payload was not delivered
-                cout << "Transmission failed or timed out" << endl;
-                failure++;
-            }
-
-            // to make this example readable in the terminal
-            //delay(1000);  // slow transmissions down by 1 second
+        printf("MASTER: Starting transmission!\n");
+        Frame* f = transBuf->getFirst();
+        payload = f->serialize();
+        clock_gettime(CLOCK_MONOTONIC_RAW, &startTimer);            // start the timer 
+        bool success = radio.write(payload, f->size+4);
+        uint32_t timerEllapsed = getMicros();                       // end the timer
+        
+        if (success) {
+            // payload was delivered
+            cout << "Transmission successful! Time to transmit = ";
+            cout << timerEllapsed;                                  // print the timer result
+            cout << " us. Sent: " << payload << endl;               // print payload sent
+            //payload += 0.01;    
+        } else {
+            // payload was not delivered
+            cout << "Transmission failed or timed out" << endl;
+            failure++;
         }
+        
     }
     time_t t1 = time(&timer);
     double runtime = difftime(t1, t0);
@@ -215,14 +264,22 @@ void slave(RF24 radio) {
     while(!done){
         bool finished = false;
         int pack = 0;
-        std::list<Frame> frames;
+        //std::list<Frame> frames;
         while (!finished) {                 // use 6 second timeout
             uint8_t pipe;
             if (radio.available(&pipe)) {                        // is there a payload? get the pipe number that recieved it
                 uint8_t bytes = radio.getPayloadSize();          // get the size of the payload
                 radio.read(&payload, bytes);                     // fetch payload from FIFO
                 Frame* f = new Frame(payload);
-                frames.push_front(*f);
+                int fId = f->id;
+                pthread_mutex_lock(&mutex);
+                if(recvMap.find(fId) == recvMap.end()){
+                    std::list<Frame>* frames = new list<Frame>();
+                    recvMap.insert(pair<int,list<Frame>>(fId, *frames));
+                }
+
+                recvMap[fId].push_back(*f);
+                pthread_mutex_unlock(&mutex);
                 if(f->end)
                     finished = true;
                 /*for(int i = 0; i < 32; i++){
@@ -240,10 +297,15 @@ void slave(RF24 radio) {
                 startTimer = time(nullptr);                      // reset timer
             }
         }
-        char* packet = reassemble_packet(frames, pack);
+        if(finished) {
+            printf("Frame put in recvmap\n");
+        }
+        /*map<int, list<Frame>>::iterator itr = recvMap.begin();
+        //printf("%d", itr->second);
+        char* packet = reassemble_packet(itr->second, pack);
         printf("packet reassembled!\n");
         dumpHex(packet, " ", 84);
-        //cout << "Full message received: " << message << endl;
+        //cout << "Full message received: " << message << endl;*/
     }
     if(done)
         cout << "Done! Exiting recevie!" << endl;

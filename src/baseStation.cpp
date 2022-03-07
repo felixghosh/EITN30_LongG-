@@ -13,6 +13,7 @@
 #include <queue>
 #include <list>
 #include <arpa/inet.h>
+#include <map>
 #define MUADDR "10.0.0.2"
 #define BSADDR "10.0.0.1"
 
@@ -29,6 +30,8 @@ RF24 radioReceive(27,60);
 
 char payload[32]; 
 
+TransBuf *transBuf = new TransBuf;
+map<int,list<Frame>> recvMap; 
 
 void master(RF24 radio);  
 void slave(RF24 radio); 
@@ -218,9 +221,9 @@ void slave(RF24 radio) {
             if (radio.available(&pipe)) {                        // is there a payload? get the pipe number that recieved it
                 uint8_t bytes = radio.getPayloadSize();          // get the size of the payload
                 radio.read(&payload, bytes);                     // fetch payload from FIFO
-                Frame f(payload);
-                frames.push_front(f);
-                if(f.end)
+                Frame* f = new Frame(payload);
+                frames.push_front(*f);
+                if(f->end)
                     finished = true;
                 /*for(int i = 0; i < 32; i++){
                     message[i + (32*pack)] = payload[i];

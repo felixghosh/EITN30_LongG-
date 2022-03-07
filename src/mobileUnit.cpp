@@ -155,6 +155,7 @@ void* setup_receiver(void* p_radio){
     }
 
     radio.setChannel(70);
+    radio.setDataRate(RF24_2MBPS);
     // to use different addresses on a pair of radios, we need a variable to
     // uniquely identify which address this radio will use to transmit
     bool radioNumber = 0; // 0 uses address[0] to transmit, 1 uses address[1] to transmit
@@ -189,6 +190,7 @@ void* setup_sender(void* p_radio){
     }
 
     radio.setChannel(120);
+    radio.setDataRate(RF24_2MBPS);
     // to use different addresses on a pair of radios, we need a variable to
     // uniquely identify which address this radio will use to transmit
     bool radioNumber = 1; // 0 uses address[0] to transmit, 1 uses address[1] to transmit

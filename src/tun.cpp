@@ -22,37 +22,40 @@ void dumpHex(char* data, std::string separator, size_t len)
 
 static int tun_fd;
 
-int tun_alloc(char *dev) 
+int tun_alloc(char *dev)
 {
-  assert(dev != NULL);
-  int fd = open("/dev/net/tun", O_RDWR);
-  CHECKFD(fd);
- 
-  struct ifreq ifr; 
-  memset(&ifr, 0, sizeof(ifr)); 
-  ifr.ifr_flags = IFF_TUN | IFF_NO_PI;
-  strncpy(ifr.ifr_name, dev, IFNAMSIZ); 
-  CHECKSYS(ioctl(fd, TUNSETIFF, (void *) &ifr));
-  strncpy(dev, ifr.ifr_name, IFNAMSIZ); 
-  return fd;
+    assert(dev != NULL);
+    int fd = open("/dev/net/tun", O_RDWR);
+    CHECKFD(fd);
+
+    struct ifreq ifr;
+    memset(&ifr, 0, sizeof(ifr));
+    ifr.ifr_flags = IFF_TUN | IFF_NO_PI;
+    strncpy(ifr.ifr_name, dev, IFNAMSIZ);
+    CHECKSYS(ioctl(fd, TUNSETIFF, (void *)&ifr));
+    strncpy(dev, ifr.ifr_name, IFNAMSIZ);
+
+    printf("Created tun device %s\n", dev);
+    return fd;
 }
+void setup_tun(std::string addr) {
+   char dev[IFNAMSIZ + 1]; // array containg tun device name
+    char buf[2048];
 
-void setup_tun(std::string address){
-  char dev[IFNAMSIZ+1];
-   memset(dev,0,sizeof(dev));
-   strncpy(dev, "lg0", 3);
-   // Allocate the tun device
-  tun_fd = tun_alloc(dev);
-  if (tun_fd < 0){
-    printf("Error creating tun device!");
-    exit(0);
-  }
+    memset(dev, 0, sizeof(dev));
+    strncpy(dev, "lg0", 3);
+    // Allocate the tun device
+    tun_fd = tun_alloc(dev);
+    if (tun_fd < 0) {
+        printf("Could not create tun device");
+        exit(0);
+    }
 
-  //system("sudo /sbin/ifconfig lg0 up");
+    // Appropritate commands to setup device
+    std::string command = "sudo ip addr add " + addr + " dev lg0";
 
-  system("sudo ip link set lg0 up");
-  std::string addr_command = "sudo ip addr add " + address + " dev lg0";
-  system(addr_command.c_str());
+    system("sudo ip link set lg0 up");
+    system(command.c_str());
 }
 
 void fragment_packet(char* packbuf, int len, TransBuf* transBuf){

@@ -14,8 +14,8 @@
 #include <list>
 #include <arpa/inet.h>
 #include <map>
-#define MUADDR "10.0.0.2"
-#define BSADDR "10.0.0.1"
+#define MUADDR "192.168.0.3/24"
+#define BSADDR "192.168.0.1/24"
 
 #include "tun.hpp"
 
@@ -55,7 +55,7 @@ int main(int argc, char** argv) {
     *p_radio_receive = radioReceive;
 
     //Setup tun interface
-    setup_tun("10.0.0.1");
+    setup_tun(BSADDR);
 
     //Create threads
     pthread_create(&send, NULL, sender, p_radio_send);
@@ -135,7 +135,7 @@ void* writeTun(void* arg){
         pthread_mutex_unlock(&mutex);
         
         
-        usleep(1000000);
+        //usleep(1000000);
     }
     
     pthread_exit(NULL);

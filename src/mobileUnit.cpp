@@ -14,8 +14,8 @@
 #include <mutex>
 #include <arpa/inet.h>
 
-#define MUADDR "10.0.0.2"
-#define BSADDR "10.0.0.1"
+#define MUADDR "192.168.0.3/24"
+#define BSADDR "192.168.0.1/24"
 
 
 using namespace std;
@@ -65,7 +65,7 @@ int main(int argc, char** argv) {
     *p_radio_receive = radioReceive;
 
     //Setup tun interface
-    setup_tun("10.0.0.2");
+    setup_tun(MUADDR);
 
     //Create threads
     pthread_create(&send, NULL, sender, p_radio_send);
@@ -125,11 +125,25 @@ void* readTun(void* arg){
 void* writeTun(void* arg){
     char writebuf[1024];
     while(true){
-        memset(writebuf, 0, 1024);
-        strcpy(writebuf, "TJA");
-        write_tun(writebuf, sizeof writebuf);
-        //printf("NUUUU");
-        usleep(1000000);
+        pthread_mutex_lock(&mutex2);
+        map<int, list<Frame>>::iterator itr = recvMap.begin();
+        for(itr; itr != recvMap.end(); itr++){
+            if(itr->second.back().end == true) {
+                char* packet = reassemble_packet(itr->second, itr->second.size());
+                
+                printf("packet reassembled!\n");
+                //dumpHex(packet, " ", 84);
+                int len = packet[3];
+                write_tun(packet, len);
+                printf("WRITTEN TO TUN\n");
+                break;
+            }
+        }
+        recvMap.erase(itr->first);
+        pthread_mutex_unlock(&mutex2);
+        
+        
+        //usleep(1000000);
     }
     
     pthread_exit(NULL);
@@ -258,6 +272,7 @@ void slave(RF24 radio) {
             if (radio.available(&pipe)) {                        // is there a payload? get the pipe number that recieved it
                 uint8_t bytes = radio.getPayloadSize();          // get the size of the payload
                 radio.read(&payload, bytes);                     // fetch payload from FIFO
+                printf("\nRECEIVED PACKAGE!!!!\n");
                 Frame* f = new Frame(payload);
                 int fId = f->id;
                 pthread_mutex_lock(&mutex2);

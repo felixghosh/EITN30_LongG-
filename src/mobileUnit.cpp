@@ -9,9 +9,9 @@
 #include <unistd.h>
 #include "ip.hpp"
 #include "tun.hpp"
-#include "transbuf.hpp"
 #include <queue>
 #include <list>
+#include <mutex>
 #include <arpa/inet.h>
 
 #define MUADDR "10.0.0.2"
@@ -25,13 +25,16 @@ void* receiver(void* p_radio);
 void* readTun(void* arg);
 void* writeTun(void* arg);
 
+pthread_mutex_t mutex2;
+
 RF24 radioSend(17, 0);
 RF24 radioReceive(27,60);
 
 
-//char* payload;
+char payload[32]; 
 
 TransBuf *transBuf = new TransBuf;
+map<int,list<Frame>> recvMap; 
 
 void master(RF24 radio);
 void slave(RF24 radio);
@@ -53,8 +56,9 @@ void print_queue(queue<Frame*> q)
 
 int main(int argc, char** argv) {
     pthread_t send, receive, read_tun_thread, write_tun_thread;
+    pthread_mutex_init(&mutex2, NULL);
 
-    //Setup radiso
+    //Setup radios
     RF24 *p_radio_send = (RF24*) malloc(sizeof(RF24));
     RF24 *p_radio_receive = (RF24*) malloc(sizeof(RF24));
     *p_radio_send = radioSend;
@@ -68,19 +72,23 @@ int main(int argc, char** argv) {
     pthread_create(&receive, NULL, receiver, p_radio_receive);
     pthread_create(&read_tun_thread, NULL, readTun, NULL);
     pthread_create(&write_tun_thread, NULL, writeTun, NULL);
-    
+
     //wait for threads to join
     void *ret;
     if(pthread_join(read_tun_thread, &ret) != 0){
-        perror("pthread_create() error");
+        perror("pthread_join() error");
+        exit(3);
+    }
+    if(pthread_join(write_tun_thread, &ret) != 0){
+        perror("pthread_join() error");
         exit(3);
     } 
     if(pthread_join(send, &ret) != 0){
-        perror("pthread_create() error");
+        perror("pthread_join() error");
         exit(3);
     }
-    else if(pthread_join(receive, &ret) != 0){
-        perror("pthread_create() error");
+    if(pthread_join(receive, &ret) != 0){
+        perror("pthread_join() error");
         exit(3);
     }
     else return 0;
@@ -107,26 +115,6 @@ void* readTun(void* arg){
             }
             else
                 printf("For us!\n");
-            
-            
-           /* std::list<Frame> frames;
-            //transBuf->peekFrontSize();
-            int len = transBuf->size();
-            
-            for(int i = 0; i < len; i++){
-                //dumpHex((*transBuf.queue.front()).data, " ", 28);//frames.front().data);
-                printf("size: %d\n", transBuf->size());
-                Frame* f = transBuf->queue.front();//transBuf->getFirst();
-                transBuf->queue.pop();
-                std::cout << f->toString() << std::endl;
-                //printf("Framesize: %d\n", f->getSize());
-                dumpHex(f->data, " ", 28);
-                frames.push_front(*f);
-                //dumpHex(frames.front().data, " ", frames.front().size);
-            }
-            reconstructed = reassemble_packet(frames, len);
-            printf("packet reassembled!\n");
-            dumpHex(reconstructed, sep, x);*/
         }
     }
     pthread_exit(NULL);
@@ -257,39 +245,55 @@ void slave(RF24 radio) {
 
     time_t startTimer = time(nullptr);                       // start a timer
     char message[1024];
-    char payload [32];
+    
     bool done = false;
-    while(!done && time(nullptr) - startTimer < 600){
+    while(!done){
         bool finished = false;
         int pack = 0;
-        while (time(nullptr) - startTimer < 60 && !finished) {                 // use 6 second timeout
+        //std::list<Frame> frames;
+        while (!finished) {                 // use 6 second timeout
             uint8_t pipe;
             if (radio.available(&pipe)) {                        // is there a payload? get the pipe number that recieved it
                 uint8_t bytes = radio.getPayloadSize();          // get the size of the payload
                 radio.read(&payload, bytes);                     // fetch payload from FIFO
+                Frame* f = new Frame(payload);
+                int fId = f->id;
+                pthread_mutex_lock(&mutex2);
+                if(recvMap.find(fId) == recvMap.end()){
+                    std::list<Frame>* frames = new list<Frame>();
+                    recvMap.insert(pair<int,list<Frame>>(fId, *frames));
+                }
 
-                for(int i = 0; i < 32; i++){
+                recvMap[fId].push_back(*f);
+                pthread_mutex_unlock(&mutex2);
+                if(f->end)
+                    finished = true;
+                /*for(int i = 0; i < 32; i++){
                     message[i + (32*pack)] = payload[i];
                     if(payload[i] == '\0'){
                         finished = true;
                         break;
                     }
-                }
+                }*/
                 pack++;
 
-                cout << "Received " << (unsigned int)bytes;      // print the size of the payload
+                /*cout << "Received " << (unsigned int)bytes;      // print the size of the payload
                 cout << " bytes on pipe " << (unsigned int)pipe; // print the pipe number
-                cout << ": " << payload << endl;                 // print the payload's value
+                cout << ": " << payload << endl;*/                 // print the payload's value
                 startTimer = time(nullptr);                      // reset timer
             }
         }
-        if(finished)
-            cout << "Full message received: " << message << endl;
+        /*map<int, list<Frame>>::iterator itr = recvMap.begin();
+        //printf("%d", itr->second);
+        char* packet = reassemble_packet(itr->second, pack);
+        printf("packet reassembled!\n");
+        dumpHex(packet, " ", 84);
+        //cout << "Full message received: " << message << endl;*/
     }
     if(done)
         cout << "Done! Exiting recevie!" << endl;
     else
-        cout << "Nothing received in 60 seconds. Leaving RX role." << endl;
+        cout << "Nu är något snett" << endl;
     radio.stopListening();
 }
 

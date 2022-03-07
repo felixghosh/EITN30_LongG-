@@ -1,11 +1,11 @@
 .PHONY: all mobileUnit baseStation
 
 mobileUnit:
-	g++ src/mobileUnit.cpp src/tun.cpp src/ip.cpp src/transbuf.cpp -lpthread -lrf24 -g
+	g++ -O3 src/mobileUnit.cpp src/tun.cpp src/ip.cpp src/transbuf.cpp -lpthread -lrf24 -g
 	sudo ./a.out
 
 baseStation:
-	g++ src/baseStation.cpp src/tun.cpp src/ip.cpp src/transbuf.cpp -lpthread -lrf24 -g
+	g++ -O3 src/baseStation.cpp src/tun.cpp src/ip.cpp src/transbuf.cpp -lpthread -lrf24 -g
 	sudo ./a.out
 
 tun:

@@ -80,7 +80,6 @@ void fragment_packet(char* packbuf, int len, TransBuf* transBuf){
 }
 
 char* reassemble_packet(std::list<Frame> frames, int len){
-    printf("\nreassembling packet!\n");
     frames.sort([](const Frame & a, const Frame & b){return a.num < b.num;});
     char* packbuf = new char[1024];
     memset(packbuf, 0, 1024);
@@ -103,30 +102,6 @@ void write_tun(char* writebuf, size_t len){
   write(tun_fd, writebuf, len);
 }
 
-/*int main(int argc, char *argv[])
-{
-  char dev[IFNAMSIZ+1];
-  memset(dev,0,sizeof(dev));
-  //if (argc > 1) strncpy(dev,argv[1],sizeof(dev)-1);
-  strncpy(dev, "lg0", 3);
- 
-  // Allocate the tun device
-  int fd = tun_alloc(dev);
-  if (fd < 0) exit(0);
- 
-  uint8_t buf[2048];
-  while(true) {
-    std::cout << "här"; 
-    // Sit in a loop, read a packet from fd, reflect
-    // addresses and write back to fd.
-    ssize_t nread = read(fd,buf,sizeof(buf));
-    CHECK(nread >= 0);
-    if (nread == 0) break;
-    reflect(buf,nread);
-    ssize_t nwrite = write(fd,buf,nread);
-    CHECK(nwrite == nread);
-  }
-}*/
 
 static inline void put32(uint8_t *p, size_t offset, uint32_t n)
 {

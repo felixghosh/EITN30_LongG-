@@ -21,8 +21,8 @@
 
 using namespace std;
 
-void* sender(void* p_radio);
-void* receiver(void* p_radio);
+void* setup_sender(void* p_radio);
+void* setup_receiver(void* p_radio);
 void* readTun(void* arg);
 void* writeTun(void* arg);
 
@@ -37,15 +37,15 @@ char payload[32];
 TransBuf *transBuf = new TransBuf;
 map<int,list<Frame>> recvMap; 
 
-void master(RF24 radio);  
-void slave(RF24 radio); 
+void sender(RF24 radio);  
+void receiver(RF24 radio); 
 
 // custom defined timer for evaluating transmission time in microseconds
 struct timespec startTimer, endTimer;
 uint32_t getMicros(); // prototype to get ellapsed time in microseconds
 
 int main(int argc, char** argv) {
-    pthread_t send, receive, read_tun_thread, write_tun_thread;
+    pthread_t send_thread, receive_thread, read_tun_thread, write_tun_thread;
     pthread_mutex_init(&mutex, NULL);
 
     //Setup radios
@@ -58,8 +58,8 @@ int main(int argc, char** argv) {
     setup_tun(BSADDR);
 
     //Create threads
-    pthread_create(&send, NULL, sender, p_radio_send);
-    pthread_create(&receive, NULL, receiver, p_radio_receive);
+    pthread_create(&send_thread, NULL, setup_sender, p_radio_send);
+    pthread_create(&receive_thread, NULL, setup_receiver, p_radio_receive);
     pthread_create(&read_tun_thread, NULL, readTun, NULL);
     pthread_create(&write_tun_thread, NULL, writeTun, NULL);
 
@@ -73,11 +73,11 @@ int main(int argc, char** argv) {
         perror("pthread_join() error");
         exit(3);
     } 
-    if(pthread_join(send, &ret) != 0){
+    if(pthread_join(send_thread, &ret) != 0){
         perror("pthread_join() error");
         exit(3);
     }
-    if(pthread_join(receive, &ret) != 0){
+    if(pthread_join(receive_thread, &ret) != 0){
         perror("pthread_join() error");
         exit(3);
     }
@@ -86,7 +86,6 @@ int main(int argc, char** argv) {
 }
 
 void* readTun(void* arg){
-    printf("READ TUN\n");
     char readBuf[1024];
     char* reconstructed;
     while(true){
@@ -94,17 +93,14 @@ void* readTun(void* arg){
         
         
         string sep = " ";
-        if(((readBuf[0] & 0xF0) >> 4) == 4){         //Check for ipv4 packet
-            printf("READ TUN igen\n");          
+        if(((readBuf[0] & 0xF0) >> 4) == 4){         //Check for ipv4 packet         
             char destBytes[4];
             for(int i = 16; i < 20; i++)
                 destBytes[i - 16] = readBuf[i];
             char dest[INET_ADDRSTRLEN];
             inet_ntop(AF_INET, destBytes, dest, INET_ADDRSTRLEN);
-            printf("dest: %s\n", dest);
 
             if(strcmp(dest, BSADDR) != 0){
-                printf("Not for us!\n");
                 fragment_packet(readBuf, x, transBuf);      //Puts frames in transbuf
             }
             else
@@ -123,11 +119,9 @@ void* writeTun(void* arg){
             if(itr->second.back().end == true) {
                 char* packet = reassemble_packet(itr->second, itr->second.size());
                 
-                printf("packet reassembled!\n");
                 //dumpHex(packet, " ", 84);
                 int len = packet[3];
                 write_tun(packet, len);
-                printf("WRITTEN TO TUN\n");
                 break;
             }
         }
@@ -141,7 +135,7 @@ void* writeTun(void* arg){
     pthread_exit(NULL);
 }
 
-void* receiver(void* p_radio){
+void* setup_receiver(void* p_radio){
     RF24 radio = *((RF24 *) p_radio);
     free(p_radio);
 
@@ -169,13 +163,13 @@ void* receiver(void* p_radio){
 
     radio.openReadingPipe(1, address[!radioNumber]);
 
-    slave(radio);
+    receiver(radio);
 
     pthread_exit(NULL);
 
 }
 
-void* sender(void* p_radio){
+void* setup_sender(void* p_radio){
     RF24 radio = *((RF24 *) p_radio);
     free(p_radio);
 
@@ -203,7 +197,7 @@ void* sender(void* p_radio){
 
     //radio.openReadingPipe(1, address[!radioNumber]);
 
-    master(radio);
+    sender(radio);
 
     pthread_exit(NULL);
 
@@ -212,7 +206,7 @@ void* sender(void* p_radio){
 /**
  * make this node act as the transmitter
  */
-void master(RF24 radio) {
+void sender(RF24 radio) {
     char* payload;
     radio.stopListening();   
     unsigned int failure = 0;                                       // keep track of failures
@@ -223,24 +217,22 @@ void master(RF24 radio) {
         while(transBuf->isEmpty()){
             usleep(100000);
         }
-        printf("MASTER: Starting transmission!\n");
         Frame* f = transBuf->getFirst();
         payload = f->serialize();
         clock_gettime(CLOCK_MONOTONIC_RAW, &startTimer);            // start the timer 
         bool success = radio.write(payload, f->size+4);
         uint32_t timerEllapsed = getMicros();                       // end the timer
         
-        if (success) {
+        /*if (success) {
             // payload was delivered
             cout << "Transmission successful! Time to transmit = ";
             cout << timerEllapsed;                                  // print the timer result
-            cout << " us. Sent: " << payload << endl;               // print payload sent
-            //payload += 0.01;    
+            cout << " us. Sent: " << payload << endl;               // print payload sent  
         } else {
             // payload was not delivered
             cout << "Transmission failed or timed out" << endl;
             failure++;
-        }
+        }*/
         
     }
     time_t t1 = time(&timer);
@@ -254,7 +246,7 @@ void master(RF24 radio) {
 /**
  * make this node act as the receiver
  */
-void slave(RF24 radio) {
+void receiver(RF24 radio) {
     radio.startListening();                                  // put radio in RX mode
 
     time_t startTimer = time(nullptr);                       // start a timer
@@ -282,13 +274,6 @@ void slave(RF24 radio) {
                 pthread_mutex_unlock(&mutex);
                 if(f->end)
                     finished = true;
-                /*for(int i = 0; i < 32; i++){
-                    message[i + (32*pack)] = payload[i];
-                    if(payload[i] == '\0'){
-                        finished = true;
-                        break;
-                    }
-                }*/
                 pack++;
 
                 /*cout << "Received " << (unsigned int)bytes;      // print the size of the payload
@@ -297,15 +282,6 @@ void slave(RF24 radio) {
                 startTimer = time(nullptr);                      // reset timer
             }
         }
-        if(finished) {
-            printf("Frame put in recvmap\n");
-        }
-        /*map<int, list<Frame>>::iterator itr = recvMap.begin();
-        //printf("%d", itr->second);
-        char* packet = reassemble_packet(itr->second, pack);
-        printf("packet reassembled!\n");
-        dumpHex(packet, " ", 84);
-        //cout << "Full message received: " << message << endl;*/
     }
     if(done)
         cout << "Done! Exiting recevie!" << endl;

@@ -79,6 +79,7 @@ int main(int argc, char** argv) {
         perror("pthread_join() error");
         exit(3);
     }
+
     if(pthread_join(write_tun_thread, &ret) != 0){
         perror("pthread_join() error");
         exit(3);
@@ -91,6 +92,7 @@ int main(int argc, char** argv) {
         perror("pthread_join() error");
         exit(3);
     }
+    
     else return 0;
 }
 

@@ -97,7 +97,7 @@ int main(int argc, char** argv) {
 }
 
 void* readTun(void* arg){
-    char readBuf[1024];
+    char readBuf[70000];
     char* reconstructed;
     while(true){
         int x = read_tun(readBuf, sizeof readBuf);
@@ -117,6 +117,7 @@ void* readTun(void* arg){
             else
                 printf("For us!\n");
         }
+        memset(readBuf, 0, 70000);
     }
     pthread_exit(NULL);
 }
@@ -227,21 +228,24 @@ void sender(RF24 radio) {
         }
         Frame* f = transBuf->getFirst();
         payload = f->serialize();
-        clock_gettime(CLOCK_MONOTONIC_RAW, &startTimer);            // start the timer 
-        bool success = radio.write(payload, f->size+4);
-        uint32_t timerEllapsed = getMicros();                       // end the timer
-        
-        /*if (success) {
-            // payload was delivered
-            cout << "Transmission successful! Time to transmit = ";
-            cout << timerEllapsed;                                  // print the timer result
-            cout << " us. Sent: " << payload << endl;               // print payload sent
-           
-        } else {
-            // payload was not delivered
-            cout << "Transmission failed or timed out" << endl;
-            failure++;
-        }*/
+        bool success = false;
+        while(!success){
+            clock_gettime(CLOCK_MONOTONIC_RAW, &startTimer);            // start the timer 
+            success = radio.write(payload, f->size+4);
+            uint32_t timerEllapsed = getMicros();                       // end the timer
+            
+            if (success) {
+                // payload was delivered
+                cout << "Transmission successful! Time to transmit = ";
+                cout << timerEllapsed;                                  // print the timer result
+                cout << " us. Sent: " << payload << endl;               // print payload sent
+                
+            } else {
+                // payload was not delivered
+                cout << "Transmission failed or timed out" << endl;
+                failure++;
+            }
+        }
         
     }
     time_t t1 = time(&timer);

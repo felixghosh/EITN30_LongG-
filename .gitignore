@@ -4,3 +4,5 @@ rf24libs/
 *.out
 reflect
 *.o
+server
+client

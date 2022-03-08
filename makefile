@@ -9,10 +9,10 @@ baseStation:
 	sudo ./a.out
 
 server:
-	gcc -O3 -g server.c -o server
+	gcc -O3 -g src/ftp/server.c -o server -lpthread
 
 client:
-	gcc -O3 -g client.c -o client
+	gcc -O3 -g src/ftp/client.c -o client
 
 clean:
 	rm a.out

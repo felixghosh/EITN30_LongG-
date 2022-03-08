@@ -81,8 +81,8 @@ void fragment_packet(char* packbuf, int len, TransBuf* transBuf){
 
 char* reassemble_packet(std::list<Frame> frames, int len){
     frames.sort([](const Frame & a, const Frame & b){return a.num < b.num;});
-    char* packbuf = new char[1024];
-    memset(packbuf, 0, 1024);
+    char* packbuf = new char[65536];
+    memset(packbuf, 0, 65536);
     for(int i = 0; i < len; i++){
         //strcat(packbuf, frames.front().data);
         for(int j = 0; j < frames.front().size; j++)
@@ -95,7 +95,9 @@ char* reassemble_packet(std::list<Frame> frames, int len){
 
 int read_tun(char* readbuf, size_t len){
   //printf("tun_fd: %d\n", tun_fd);
-  return read(tun_fd, readbuf, len);
+  int x = read(tun_fd, readbuf, len);
+  //printf("%d\n",x);
+  return x;
 }
 
 void write_tun(char* writebuf, size_t len){

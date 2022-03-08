@@ -97,11 +97,9 @@ int main(int argc, char** argv) {
 }
 
 void* readTun(void* arg){
-    char readBuf[70000];
-    char* reconstructed;
+    char readBuf[65536];
     while(true){
-        int x = read_tun(readBuf, sizeof readBuf);
-        
+        int x = read_tun(readBuf, 65536);
         string sep = " ";
         if(((readBuf[0] & 0xF0) >> 4) == 4){           //Check for ipv4 packet
             char destBytes[4];
@@ -113,24 +111,31 @@ void* readTun(void* arg){
             if(strcmp(dest, MUADDR) != 0){
                 //printf("Not for us!\n");
                 fragment_packet(readBuf, x, transBuf);      //Puts frames in transbuf
+                
             }
             else
                 printf("For us!\n");
+            //printf("zeroing buffer\n");
         }
-        memset(readBuf, 0, 70000);
+        
+        //memset(readBuf, 0, 65536);
     }
     pthread_exit(NULL);
 }
 
 void* writeTun(void* arg){
-    char writebuf[1024];
+    //char writebuf[1024];
+    int nbrPack = 0;
     while(true){
+        //printf("write 1\n");
         pthread_mutex_lock(&mutex2);
         map<int, list<Frame>>::iterator itr = recvMap.begin();
+        //printf("write 2\n");
         for(itr; itr != recvMap.end(); itr++){
             if(itr->second.back().end == true) {
                 char* packet = reassemble_packet(itr->second, itr->second.size());
-                int len = packet[3];
+                printf("packet reassembled: %d\n", ++nbrPack);
+                uint16_t len = ((packet[2] << 8) | packet[3]) & 0xFFFF;
                 write_tun(packet, len);
                 break;
             }
@@ -223,6 +228,7 @@ void sender(RF24 radio) {
     time_t t0 = time(&timer); 
     bool finished = false;
     while(!finished){
+        //printf("sender\n");
         while(transBuf->isEmpty()){
             usleep(10000);
         }
@@ -258,34 +264,43 @@ void receiver(RF24 radio) {
     radio.startListening();                                  // put radio in RX mode
 
     time_t startTimer = time(nullptr);                       // start a timer
-    char message[1024];
     
     bool done = false;
+    int nbrFrames = 1;
     while(!done){
+        //printf("receiver\n");
         bool finished = false;
-        int pack = 0;
+        
         while (!finished) {                 // use 6 second timeout
             uint8_t pipe;
+            //printf("receive 0\n");
             if (radio.available(&pipe)) {                        // is there a payload? get the pipe number that recieved it
                 uint8_t bytes = radio.getPayloadSize();          // get the size of the payload
+                //printf("receive 1\n");
                 radio.read(&payload, bytes);                     // fetch payload from FIFO
+                //printf("receive 2\n");
+                //printf("Frame received: %d\n", nbrFrames);
                 Frame* f = new Frame(payload);
                 int fId = f->id;
                 pthread_mutex_lock(&mutex2);
+                //printf("receive 3\n");
                 if(recvMap.find(fId) == recvMap.end()){
                     std::list<Frame>* frames = new list<Frame>();
                     recvMap.insert(pair<int,list<Frame>>(fId, *frames));
                 }
+                //printf("receive 4\n");
 
                 recvMap[fId].push_back(*f);
+                //printf("receive 5\n");
                 pthread_mutex_unlock(&mutex2);
+                
                 if(f->end)
                     finished = true;
                
-                pack++;
+                nbrFrames++;
 
                                  // print the payload's value
-                startTimer = time(nullptr);                      // reset timer
+                //startTimer = time(nullptr);                      // reset timer
             }
         }
     }

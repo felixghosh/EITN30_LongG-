@@ -26,7 +26,7 @@ void send_file(char* fp, int conn_sock_fd);
 
  
 int main(){
-  char *ip = BSADDRE;
+  char *ip = BSADDR;
   int e;
  
   int listen_sock_fd, conn_sock_fd;
@@ -75,9 +75,7 @@ void handle_connection(int conn_sock_fd){
 
     while(!finished){
         char clientMessage[4], serverResponse[BUFSIZ];
-        printf("1\n");
         recv(conn_sock_fd, clientMessage, 4, 0);
-        printf("2\n");
         int command = getCommand(clientMessage);
         switch (command)
         {
@@ -114,12 +112,12 @@ int getCommand(char* clientMessage){
 void getFile(int conn_sock_fd){
     printf("getFile\n");
     FILE f;
-    char fp[BUFSIZ];
+    char fp[100];
     char okBuf[3] = "OK";
     printf("sending ok!\n");
     send(conn_sock_fd, okBuf, sizeof okBuf, 0);
     printf("waiting for file path\n");
-    int x = recv(conn_sock_fd, fp, BUFSIZ, 0);
+    int x = recv(conn_sock_fd, fp, 100, 0);
     printf("x = %d fp = %s\n", x, fp);
     printf("checking access\n");
     if(access(fp, F_OK) != -1) {
@@ -142,12 +140,23 @@ void send_file(char* fp, int conn_sock_fd) {
     printf("send_file\n");
     struct stat file_stats;
     stat(fp, &file_stats);
-    int file_size = file_stats.st_size;
-    printf("file size actual: %d\n", file_size);
+    size_t file_size = file_stats.st_size;
+    printf("file size actual: %lu\n", file_size);
+    send(conn_sock_fd, &file_size, sizeof(size_t), 0);
     int file_fd = open(fp, O_RDONLY);
+    size_t bytes_sent = 0;
+    off_t* offset;
+    unsigned long x, y;
+    x = file_size;
+    while(bytes_sent < file_size){
+        bytes_sent += sendfile(conn_sock_fd, file_fd, offset, file_size);
+        y = bytes_sent;
 
-    printf("file size sent %d\n", send(conn_sock_fd, &file_size, sizeof(int), 0));
+        float percentage =y/x;
+        printf("%lu\n", bytes_sent);
+        //printf("bytes_sent: %lu, %f%c done\n", bytes_sent, ((bytes_sent/file_size) * 100), '%');
+    }
 
-    printf("file sent = %d\n", sendfile(conn_sock_fd, file_fd, NULL, file_size));
+    printf("file sent = %lu\n", bytes_sent);
 
 }

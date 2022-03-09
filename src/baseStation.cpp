@@ -120,7 +120,7 @@ void* writeTun(void* arg){
                 char* packet = reassemble_packet(itr->second, itr->second.size());
                 
                 //dumpHex(packet, " ", 84);
-                int len = packet[3];
+                int len = ((packet[2] << 8) | packet[3]) & 0xFFFF;
                 write_tun(packet, len);
                 break;
             }

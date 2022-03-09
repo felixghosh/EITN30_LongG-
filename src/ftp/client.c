@@ -35,7 +35,7 @@ void send_file(FILE *fp, int sockfd)
 
 int main()
 {
-    char *ip = MUADDRE;
+    char *ip = MUADDR;
     int port = 8080;
     int e;
 
@@ -67,7 +67,7 @@ int main()
     bool finished = false;
     while (!finished)
     {
-        printf("Please select command to perforn \n 1 - Get file \n 2 - Put file\n 3 - Exit\n");
+        printf("Please select command to perform \n 1 - Get file \n 2 - Put file\n 3 - Exit\n");
         int userInput = getchar();
         switch (userInput)
         {
@@ -109,24 +109,33 @@ void getFile(int socket_fd) {
     }
     else printf("ok flag received\n");
 
-    char fp[BUFSIZ];
+    char fp[100];
+    memset(fp, 0, 100);
     printf("Please specify the file path:\n");
     scanf("%s", &fp);
     printf("%s\n", fp);
     printf("sending file path\n");
-    int i = send(socket_fd, fp, BUFSIZ, 0);
+    int i = send(socket_fd, fp, 100, 0);
     printf("i = %d BUFSIZ = %d\n", i, BUFSIZ);
-    int file_size;
+    size_t file_size;
     printf("waiting for file size\n");
-    recv(socket_fd, &file_size, sizeof(int), 0);
-    printf("file size: %d\n", file_size);
+    recv(socket_fd, &file_size, sizeof file_size, 0);
+    printf("file size: %lu\n", file_size);
     char* data = malloc(file_size + 1);
     printf("opening file\n");
     FILE* f = fopen(fp, "w");
     printf("receiveing file\n");
-    int x = recv(socket_fd, data, file_size, 0);
+    size_t bytes_received = 0;
+    while(bytes_received < file_size){
+        char* temp = malloc(file_size + 1);
+        bytes_received += recv(socket_fd, temp, file_size, 0);
+        //printf("bytes_received: %lu, %d%c done\n", bytes_received, (int)((bytes_received/file_size) * 100), '%');
+        strcat(data, temp);
+        free(temp);
+    }
+    
     printf("file received!\n");
-    data[x] = '\0';
+    data[bytes_received] = '\0';
     fputs(data, f);
     fclose(f);
 }

@@ -134,8 +134,9 @@ void* writeTun(void* arg){
         for(itr; itr != recvMap.end(); itr++){
             if(itr->second.back().end == true) {
                 char* packet = reassemble_packet(itr->second, itr->second.size());
-                printf("packet reassembled: %d\n", ++nbrPack);
+                //printf("packet reassembled: %d\n", ++nbrPack);
                 uint16_t len = ((packet[2] << 8) | packet[3]) & 0xFFFF;
+                //dumpHex(packet, " ", len);
                 write_tun(packet, len);
                 break;
             }
@@ -240,7 +241,7 @@ void sender(RF24 radio) {
             success = radio.write(payload, f->size+4);
             uint32_t timerEllapsed = getMicros();                       // end the timer
             
-            if (success) {
+            /*if (success) {
                 // payload was delivered
                 cout << "Transmission successful! Time to transmit = ";
                 cout << timerEllapsed;                                  // print the timer result
@@ -250,7 +251,7 @@ void sender(RF24 radio) {
                 // payload was not delivered
                 cout << "Transmission failed or timed out" << endl;
                 failure++;
-            }
+            }*/
         }
         
     }

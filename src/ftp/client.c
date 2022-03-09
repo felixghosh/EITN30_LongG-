@@ -16,6 +16,9 @@
 #define PORT 8080
 
 void getFile(int socket_fd);
+void red();
+void green();
+void reset();
 
 void send_file(FILE *fp, int sockfd)
 {
@@ -35,22 +38,19 @@ void send_file(FILE *fp, int sockfd)
 
 int main()
 {
-    char *ip = MUADDR;
+    char *ip = MUADDRE;
     int port = 8080;
     int e;
 
     int sockfd;
     struct sockaddr_in server_addr;
-    FILE *fp;
-    char *filename = calloc(128, sizeof(char));
-
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0)
     {
-        perror("[-]Error in socket");
+        perror("\033[0;31m[-]\033[0m Error in socket");
         exit(1);
     }
-    printf("[+]Server socket created successfully.\n");
+    printf("\033[0;32m[+]\033[0m Server socket created successfully.\n");
 
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = port;
@@ -59,16 +59,17 @@ int main()
     e = connect(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr));
     if (e == -1)
     {
-        perror("[-]Error in socket");
+        perror("\033[0;31m[-]\033[0m Error in socket");
         exit(1);
     }
-    printf("[+]Connected to Server.\n");
+    printf("\033[0;32m[+]\033[0m Connected to Server.\n");
 
     bool finished = false;
     while (!finished)
     {
-        printf("Please select command to perform \n 1 - Get file \n 2 - Put file\n 3 - Exit\n");
+        printf("\n\033[0;32m[+]\033[0m Please select command to perform: \n 1 - Get file \n 2 - Put file\n 3 - Exit\n");
         int userInput = getchar();
+        while(getchar() != '\n');
         switch (userInput)
         {
         case 49:
@@ -84,6 +85,8 @@ int main()
             break;
 
         default:
+            printf("vafan: %d\n", userInput);
+            printf("\033[0;31m[-]\033[0m Please enter a correct command!\n");
             break;
         }
     }
@@ -92,50 +95,63 @@ int main()
 }
 
 void getFile(int socket_fd) {
-    printf("getting file!\n");
+    printf("\033[0;32m[+]\033[0m Command chosen: \033[0;32mGET\033[0m\n");
     char msg[4];
     memset(msg, 0 , 4);
     strcpy(msg, "GET"); 
-    printf("sending command GET\n");
-    printf("%d\n", send(socket_fd, msg, 4, 0));
+    //printf("sending command GET\n");
+    send(socket_fd, msg, 4, 0);
     char ok_flag[3];
-    printf("waiting for ok flag\n");
+    //printf("\033[0;33m[/]\033[0m Waiting for ok flag\n");
     recv(socket_fd, ok_flag, sizeof ok_flag, 0);
     
     
     if (strcmp(ok_flag, "OK") != 0) {
-        printf("Did not receive ok_flag");
+        printf("\033[0;31m[-]\033[0mDid not receive ok_flag");
         return;
     }
-    else printf("ok flag received\n");
+    //else printf("\033[0;32m[+]\033[0m Ok flag received\n");
 
     char fp[100];
     memset(fp, 0, 100);
-    printf("Please specify the file path:\n");
+    printf("\033[0;33m[/]\033[0m Please specify the file path:\n");
     scanf("%s", &fp);
-    printf("%s\n", fp);
-    printf("sending file path\n");
     int i = send(socket_fd, fp, 100, 0);
-    printf("i = %d BUFSIZ = %d\n", i, BUFSIZ);
     size_t file_size;
-    printf("waiting for file size\n");
+    printf("\033[0;33m[/]\033[0m Awating file size\n");
     recv(socket_fd, &file_size, sizeof file_size, 0);
-    printf("file size: %lu\n", file_size);
-    char* data = malloc(file_size + 1);
-    printf("opening file\n");
+    printf("\033[0;32m[+]\033[0m File size received: \033[0;33m%lu\033[0m\n", file_size);
+    char data[file_size + 1];
+    memset(data, 0, file_size + 1);
+    //printf("opening file\n");
     FILE* f = fopen(fp, "w");
-    printf("receiveing file\n");
+    printf("\033[0;32m[+]\033[0m Receiving file\n");
     size_t bytes_received = 0;
+    char temp[file_size + 1];
     while(bytes_received < file_size){
-        char* temp = malloc(file_size + 1);
+        memset(temp, 0, file_size + 1);
         bytes_received += recv(socket_fd, temp, file_size, 0);
         //printf("bytes_received: %lu, %d%c done\n", bytes_received, (int)((bytes_received/file_size) * 100), '%');
         strcat(data, temp);
-        free(temp);
     }
     
-    printf("file received!\n");
+    printf("\033[0;32m[+]\033[0m File received!\n");
     data[bytes_received] = '\0';
     fputs(data, f);
     fclose(f);
+}
+
+void red()
+{
+    printf("\033[1;31m");
+}
+
+void green()
+{
+    printf("\033[0;32m");
+}
+
+void reset()
+{
+    printf("\033[0m");
 }

@@ -3,20 +3,30 @@
 #include <string.h>
 #include <arpa/inet.h>
 #include <stdbool.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <sys/sendfile.h>
+
 #define SIZE 1024
 
 #define MUADDR "192.168.0.3"
 #define BSADDR "192.168.0.1"
+#define MUADDRE "130.235.200.108"
+#define BSADDRE "130.235.200.109"
+#define BUFSIZ 1448
 #define PORT 8080
  
 void handle_connection(int socket);
 int getCommand(char* clientMessage);
-void getFile();
-void putFile();
-void terminateConnetion();
+void getFile(int conn_sock_fd);
+void putFile(int conn_sock_fd);
+void terminateConnection(int conn_sock_fd);
+void send_file(char* fp, int conn_sock_fd);
+
  
 int main(){
-  char *ip = BSADDR;
+  char *ip = BSADDRE;
   int e;
  
   int listen_sock_fd, conn_sock_fd;
@@ -61,49 +71,38 @@ int main(){
 
 
 void handle_connection(int conn_sock_fd){
-    int n;
-    FILE *fp;
-    char *filename;
-    char buffer[SIZE];
-    bzero(buffer, SIZE);
     bool finished = false;
 
     while(!finished){
-        char clientMessage[BUFSIZ], serverResponse[BUFSIZ];
+        char clientMessage[4], serverResponse[BUFSIZ];
+        printf("1\n");
+        recv(conn_sock_fd, clientMessage, 4, 0);
+        printf("2\n");
         int command = getCommand(clientMessage);
         switch (command)
         {
         case 0:
-            getFile();
+            getFile(conn_sock_fd);
             break;
         case 1:
-            putFile();
+            putFile(conn_sock_fd);
             break;
         case 2:
-            terminateConnection();
+            terminateConnection(conn_sock_fd);
+            finished = true;
             break;
         
         default:
             break;
         }
-        n = recv(conn_sock_fd, clientMessage, BUFSIZ, 0);
-        fp = fopen(filename, "w");
-        while (1) {
-        n = recv(conn_sock_fd, buffer, 200, 0);
-        if (n <= 0){
-            break;
-            return;
-        }
-        fprintf(fp, "%s", buffer);
-        bzero(buffer, SIZE);
-        }
-        printf("[+]Data written in the file successfully.\n");
+        
     }
     
 return;
 }
 
 int getCommand(char* clientMessage){
+    printf("getCommand\n");
     if(strcmp(clientMessage, "GET") == 0)
         return 0;
     else if(strcmp(clientMessage, "PUT") == 0)
@@ -112,14 +111,43 @@ int getCommand(char* clientMessage){
         return 2;
 }
 
-void getFile(){
+void getFile(int conn_sock_fd){
+    printf("getFile\n");
+    FILE f;
+    char fp[BUFSIZ];
+    char okBuf[3] = "OK";
+    printf("sending ok!\n");
+    send(conn_sock_fd, okBuf, sizeof okBuf, 0);
+    printf("waiting for file path\n");
+    int x = recv(conn_sock_fd, fp, BUFSIZ, 0);
+    printf("x = %d fp = %s\n", x, fp);
+    printf("checking access\n");
+    if(access(fp, F_OK) != -1) {
+        printf("access ok! sening file\n");
+        send_file(fp, conn_sock_fd);
+        printf("file sent!\n");
+    }
 
 }
 
-void putFile(){
+void putFile(int conn_sock_fd){
 
 }
 
-void terminateConnetion(){
+void terminateConnection(int conn_sock_fd){
+
+}
+
+void send_file(char* fp, int conn_sock_fd) {
+    printf("send_file\n");
+    struct stat file_stats;
+    stat(fp, &file_stats);
+    int file_size = file_stats.st_size;
+    printf("file size actual: %d\n", file_size);
+    int file_fd = open(fp, O_RDONLY);
+
+    printf("file size sent %d\n", send(conn_sock_fd, &file_size, sizeof(int), 0));
+
+    printf("file sent = %d\n", sendfile(conn_sock_fd, file_fd, NULL, file_size));
 
 }

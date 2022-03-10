@@ -26,6 +26,7 @@ void* readTun(void* arg);
 void* writeTun(void* arg);
 
 pthread_mutex_t mutex2;
+pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 
 RF24 radioSend(17, 0);
 RF24 radioReceive(27,60);
@@ -129,7 +130,9 @@ void* writeTun(void* arg){
     while(true){
         //printf("write 1\n");
         pthread_mutex_lock(&mutex2);
-        map<int, list<Frame>>::iterator itr = recvMap.begin();
+        map<int, list<Frame>>::iterator itr;
+        while((itr = recvMap.begin()) == recvMap.end())
+            pthread_cond_wait(&cond, &mutex2);
         //printf("write 2\n");
         for(itr; itr != recvMap.end(); itr++){
             if(itr->second.back().end == true) {
@@ -293,6 +296,7 @@ void receiver(RF24 radio) {
 
                 recvMap[fId].push_back(*f);
                 //printf("receive 5\n");
+                pthread_cond_signal(&cond);
                 pthread_mutex_unlock(&mutex2);
                 
                 if(f->end)

@@ -157,7 +157,7 @@ void putFile(int conn_sock_fd) {
     recv(conn_sock_fd, &file_size, sizeof file_size, 0);
     printf("\033[0;32m[+]\033[0m File size received: \033[0;33m%lu\033[0m\n", file_size);
     char* data = calloc(1, file_size + 1);
-    FILE* f = fopen(fp, "w");
+    FILE* f = fopen(fp, "wb");
     printf("\033[0;32m[+]\033[0m Receiving file\n");
     size_t bytes_received = 0;
     char* temp = calloc(1, file_size + 1);
@@ -187,6 +187,7 @@ void send_file(char *fp, int conn_sock_fd)
     int file_fd = open(fp, O_RDONLY);
     size_t bytes_sent = 0;
     off_t *offset;
+    printf("file size: %lu\n", file_size);
     while (bytes_sent < file_size)
     {
         bytes_sent += sendfile(conn_sock_fd, file_fd, offset, file_size);

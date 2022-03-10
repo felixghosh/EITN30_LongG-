@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <time.h>
 
 #define SIZE 65536
 #define MUADDR "192.168.0.3"
@@ -72,7 +73,6 @@ int main()
 
         case 51:
             ext(sockfd);
-            printf("finished!\n");
             finished = true;
             
             break;
@@ -98,15 +98,15 @@ void getFile(int socket_fd) {
     //printf("\033[0;33m[/]\033[0m Waiting for ok flag\n");
     recv(socket_fd, ok_flag, sizeof ok_flag, 0);
     
-    
     if (strcmp(ok_flag, "OK") != 0) {
         printf("\033[0;31m[-]\033[0mDid not receive ok_flag");
         return;
+        
     }
-    //else printf("\033[0;32m[+]\033[0m Ok flag received\n");
 
     char fp[100];
     memset(fp, 0, 100);
+    
     printf("\033[0;33m[/]\033[0m Please specify the file path:\n");
     scanf("%s", &fp);
     send(socket_fd, fp, 100, 0);
@@ -115,21 +115,26 @@ void getFile(int socket_fd) {
     recv(socket_fd, &file_size, sizeof file_size, 0);
     printf("\033[0;32m[+]\033[0m File size received: \033[0;33m%lu\033[0m\n", file_size);
     char* data = calloc(1, file_size + 1);
-    FILE* f = fopen(fp, "w");
+    FILE* f = fopen(fp, "wb");
     printf("\033[0;32m[+]\033[0m Receiving file\n");
     size_t bytes_received = 0;
     char* temp = calloc(1, file_size + 1);
+    clock_t t = clock();
     while(bytes_received < file_size){
         memset(temp, 0, sizeof temp);
         size_t prev_index = bytes_received;
         bytes_received += recv(socket_fd, temp, file_size, 0);
         for(int i = 0; i < bytes_received - prev_index; i++)
-            data[prev_index + i] = temp[i]; 
+            data[prev_index + i] = temp[i];
     }
+    t = clock() - t;
     
     printf("\033[0;32m[+]\033[0m File received!\n");
-    fputs(data, f);
+    //fputs(data, f);
+    fwrite(data, 1, file_size, f);
     fclose(f);
+    double time_elapsed = ((double)t)/CLOCKS_PER_SEC * 1000;
+    printf("Elapsed time: %f\n", time_elapsed);
 }
 
 void putFile(int socket_fd) {
@@ -166,9 +171,7 @@ void ext(int socket_fd){
     char msg[4] = "EXT";
     //memset(msg, 0 , 4);
     //strcpy(msg, "EXT"); 
-    printf("sending command EXT\n");
     send(socket_fd, msg, 4, 0);
-    printf("sent!\n");
 }
 
 void send_file(char *fp, int conn_sock_fd) {

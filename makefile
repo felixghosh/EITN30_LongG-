@@ -1,7 +1,7 @@
 .PHONY: all mobileUnit baseStation
 
 mobileUnit:
-	g++ -O3 src/mobileUnit.cpp src/tun.cpp src/ip.cpp src/transbuf.cpp -lpthread -lrf24 -g
+	g++ -O3 -g src/mobileUnit.cpp src/tun.cpp src/ip.cpp src/transbuf.cpp -lpthread -lrf24 
 	sudo ./a.out
 
 baseStation:
@@ -9,11 +9,11 @@ baseStation:
 	sudo ./a.out
 
 server:
-	gcc -O3 -g src/ftp/server.c -o src/ftp/server
+	gcc -O3 src/ftp/server.c -o src/ftp/server -g
 	./src/ftp/server
 
 client:
-	gcc -O3 -g src/ftp/client.c -o src/ftp/client
+	gcc -O3 src/ftp/client.c -o src/ftp/client -g
 	./src/ftp/client
 
 clean:

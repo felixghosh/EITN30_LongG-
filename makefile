@@ -9,7 +9,7 @@ baseStation:
 	sudo ./a.out
 
 server:
-	gcc -O3 -g src/ftp/server.c -o src/ftp/server -lpthread
+	gcc -O3 -g src/ftp/server.c -o src/ftp/server
 	./src/ftp/server
 
 client:

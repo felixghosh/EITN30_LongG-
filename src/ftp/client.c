@@ -16,29 +16,16 @@
 #define PORT 8080
 
 void getFile(int socket_fd);
+void putFile(int socket_fd);
+void ext(int sockfd);
+void send_file(char *fp, int conn_sock_fd);
 void red();
 void green();
 void reset();
 
-void send_file(FILE *fp, int sockfd)
-{
-    int n;
-    char data[SIZE] = {0};
-
-    while (fgets(data, SIZE, fp) != NULL)
-    {
-        if (send(sockfd, data, 200, 0) == -1)
-        {
-            perror("[-]Error in sending file.");
-            exit(1);
-        }
-        bzero(data, SIZE);
-    }
-}
 
 int main()
 {
-    char *ip = MUADDRE;
     int port = 8080;
     int e;
 
@@ -54,7 +41,7 @@ int main()
 
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = port;
-    server_addr.sin_addr.s_addr = inet_addr(ip);
+    server_addr.sin_addr.s_addr = inet_addr(MUADDR);
 
     e = connect(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr));
     if (e == -1)
@@ -67,8 +54,11 @@ int main()
     bool finished = false;
     while (!finished)
     {
+        fflush(stdin);
         printf("\n\033[0;32m[+]\033[0m Please select command to perform: \n 1 - Get file \n 2 - Put file\n 3 - Exit\n");
-        int userInput = getchar();
+        fflush(stdin);
+        int userInput;
+        while((userInput = getchar()) == '\n');
         while(getchar() != '\n');
         switch (userInput)
         {
@@ -77,20 +67,23 @@ int main()
             break;
 
         case 50:
-
+            putFile(sockfd);
             break;
 
         case 51:
-
+            ext(sockfd);
+            printf("finished!\n");
+            finished = true;
+            
             break;
 
         default:
-            printf("vafan: %d\n", userInput);
+            printf("input: %d\n", userInput);
             printf("\033[0;31m[-]\033[0m Please enter a correct command!\n");
             break;
         }
     }
-
+    //close(sockfd);
     return 0;
 }
 
@@ -116,29 +109,80 @@ void getFile(int socket_fd) {
     memset(fp, 0, 100);
     printf("\033[0;33m[/]\033[0m Please specify the file path:\n");
     scanf("%s", &fp);
-    int i = send(socket_fd, fp, 100, 0);
+    send(socket_fd, fp, 100, 0);
     size_t file_size;
     printf("\033[0;33m[/]\033[0m Awating file size\n");
     recv(socket_fd, &file_size, sizeof file_size, 0);
     printf("\033[0;32m[+]\033[0m File size received: \033[0;33m%lu\033[0m\n", file_size);
-    char data[file_size + 1];
-    memset(data, 0, file_size + 1);
-    //printf("opening file\n");
+    char* data = calloc(1, file_size + 1);
     FILE* f = fopen(fp, "w");
     printf("\033[0;32m[+]\033[0m Receiving file\n");
     size_t bytes_received = 0;
-    char temp[file_size + 1];
+    char* temp = calloc(1, file_size + 1);
     while(bytes_received < file_size){
-        memset(temp, 0, file_size + 1);
+        memset(temp, 0, sizeof temp);
+        size_t prev_index = bytes_received;
         bytes_received += recv(socket_fd, temp, file_size, 0);
-        //printf("bytes_received: %lu, %d%c done\n", bytes_received, (int)((bytes_received/file_size) * 100), '%');
-        strcat(data, temp);
+        for(int i = 0; i < bytes_received - prev_index; i++)
+            data[prev_index + i] = temp[i]; 
     }
     
     printf("\033[0;32m[+]\033[0m File received!\n");
-    data[bytes_received] = '\0';
     fputs(data, f);
     fclose(f);
+}
+
+void putFile(int socket_fd) {
+    printf("\033[0;32m[+]\033[0m Command chosen: \033[0;32mPUT\033[0m\n");
+    char msg[4];
+    memset(msg, 0 , 4);
+    strcpy(msg, "PUT"); 
+    //printf("sending command GET\n");
+    send(socket_fd, msg, 4, 0);
+    char ok_flag[3];
+    //printf("\033[0;33m[/]\033[0m Waiting for ok flag\n");
+    recv(socket_fd, ok_flag, sizeof ok_flag, 0);
+
+    if (strcmp(ok_flag, "OK") != 0) {
+        printf("\033[0;31m[-]\033[0mDid not receive ok_flag");
+        return;
+    }
+
+    char fp[100];
+    memset(fp, 0, 100);
+    printf("\033[0;33m[/]\033[0m Please specify the file path:\n");
+    scanf("%s", &fp);
+
+    if (access(fp, F_OK) != -1) {
+        printf("\033[0;32m[+]\033[0m File exists. Sending file to server!\n");
+        send(socket_fd, fp, 100, 0);
+        send_file(fp, socket_fd);
+        printf("\033[0;32m[+]\033[0m File sent!\n");
+    }
+}
+
+void ext(int socket_fd){
+    printf("\033[0;32m[+]\033[0m Command chosen: \033[0;32mEXT\033[0m\n");
+    char msg[4] = "EXT";
+    //memset(msg, 0 , 4);
+    //strcpy(msg, "EXT"); 
+    printf("sending command EXT\n");
+    send(socket_fd, msg, 4, 0);
+    printf("sent!\n");
+}
+
+void send_file(char *fp, int conn_sock_fd) {
+    struct stat file_stats;
+    stat(fp, &file_stats);
+    size_t file_size = file_stats.st_size;
+    send(conn_sock_fd, &file_size, sizeof(size_t), 0);
+    int file_fd = open(fp, O_RDONLY);
+    size_t bytes_sent = 0;
+    off_t *offset;
+    while (bytes_sent < file_size) {
+        bytes_sent += sendfile(conn_sock_fd, file_fd, offset, file_size);
+        //printf("bytes_sent: %lu, %f%c done\n", bytes_sent, ((bytes_sent/file_size) * 100), '%');
+    }
 }
 
 void red()

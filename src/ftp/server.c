@@ -147,13 +147,18 @@ void getFile(int conn_sock_fd)
 void putFile(int conn_sock_fd) {
     printf("\033[0;32m[+]\033[0m Command received: \033[0;32mPUT\033[0m\n");
     char fp[100];
+    memset(fp, 0, 100);
     char okBuf[3] = "OK";
     send(conn_sock_fd, okBuf, sizeof okBuf, 0);
     printf("\033[0;33m[/]\033[0m Awaiting file path\n");
-    recv(conn_sock_fd, fp, 100, 0);
+    printf("fp size: %d\n", sizeof fp);
+    recv(conn_sock_fd, fp, sizeof fp, 0);
     printf("\033[0;32m[+]\033[0m File path received: \033[0;33m%s\033[0m\n", fp);
-    size_t file_size;
-    printf("\033[0;33m[/]\033[0m Awating file size\n");
+    
+    unsigned long file_size;
+    printf("sizeof: %d\n", sizeof file_size);
+    printf("\033[0;33m[/]\033[0m Awaiting file size\n");
+    printf("conn sock: %d\n", conn_sock_fd);
     recv(conn_sock_fd, &file_size, sizeof file_size, 0);
     printf("\033[0;32m[+]\033[0m File size received: \033[0;33m%lu\033[0m\n", file_size);
     char* data = calloc(1, file_size + 1);
@@ -169,8 +174,11 @@ void putFile(int conn_sock_fd) {
             data[prev_index + i] = temp[i];
     }
     printf("\033[0;32m[+]\033[0m File received!\n");
-    fputs(data, f);
+    //fputs(data, f);
+    fwrite(data, 1, file_size, f);
     fclose(f);
+    free(data);
+    free(temp);
 }
 
 void terminateConnection(int conn_sock_fd)

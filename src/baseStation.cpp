@@ -125,10 +125,13 @@ void* writeTun(void* arg){
                 //dumpHex(packet, " ", 84);
                 int len = ((packet[2] << 8) | packet[3]) & 0xFFFF;
                 write_tun(packet, len);
+                itr->second.erase(itr->second.begin(), itr->second.end());
+                recvMap.erase(itr->first);
+                delete(packet);
                 break;
             }
         }
-        recvMap.erase(itr->first);
+        
         pthread_mutex_unlock(&mutex);
         
         

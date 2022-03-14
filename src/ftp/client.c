@@ -135,6 +135,8 @@ void getFile(int socket_fd) {
     fclose(f);
     double time_elapsed = ((double)t)/CLOCKS_PER_SEC * 1000;
     printf("Elapsed time: %f\n", time_elapsed);
+    free(data);
+    free(temp);
 }
 
 void putFile(int socket_fd) {
@@ -160,6 +162,7 @@ void putFile(int socket_fd) {
 
     if (access(fp, F_OK) != -1) {
         printf("\033[0;32m[+]\033[0m File exists. Sending file to server!\n");
+        printf("fp size: %d\n", sizeof fp);
         send(socket_fd, fp, 100, 0);
         send_file(fp, socket_fd);
         printf("\033[0;32m[+]\033[0m File sent!\n");
@@ -175,17 +178,24 @@ void ext(int socket_fd){
 }
 
 void send_file(char *fp, int conn_sock_fd) {
+    printf("1\n");
     struct stat file_stats;
     stat(fp, &file_stats);
+    printf("2\n");
     size_t file_size = file_stats.st_size;
-    send(conn_sock_fd, &file_size, sizeof(size_t), 0);
+    printf("file size: %lu\n", file_size);
+    int x = send(conn_sock_fd, &file_size, sizeof(size_t), 0);
+    printf("send: %d\n", x);
+    printf("3\n");
     int file_fd = open(fp, O_RDONLY);
     size_t bytes_sent = 0;
     off_t *offset;
+    printf("4\n");
     while (bytes_sent < file_size) {
         bytes_sent += sendfile(conn_sock_fd, file_fd, offset, file_size);
         //printf("bytes_sent: %lu, %f%c done\n", bytes_sent, ((bytes_sent/file_size) * 100), '%');
     }
+    printf("5\n");
 }
 
 void red()
